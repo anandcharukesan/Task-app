@@ -1,0 +1,150 @@
+import { supabase, isSupabaseConfigured } from './supabase';
+import { UserProfile, AuthSession } from '../types/user';
+
+export const authService = {
+  async getSession(): Promise<AuthSession> {
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Supabase getSession error:', error);
+      }
+      return {
+        user: data.session?.user || null,
+        accessToken: data.session?.access_token || null,
+      };
+    }
+
+    // Offline / Local storage fallback if session exists
+    const stored = localStorage.getItem('cleartasks_auth_user');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      user: null,
+      accessToken: null,
+    };
+  },
+
+  async signInWithEmail(email: string, password: string): Promise<{ error?: Error | null }> {
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { error };
+    }
+    return { error: new Error('Supabase is not configured') };
+  },
+
+  async signUpWithEmail(
+    email: string,
+    password: string,
+    displayName?: string
+  ): Promise<{ error?: Error | null; requiresEmailConfirmation?: boolean }> {
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: displayName || email.split('@')[0],
+          },
+        },
+      });
+
+      if (error) return { error };
+
+      // Try inserting into profiles table if user is created
+      if (data.user) {
+        try {
+          await supabase.from('profiles').upsert({
+            user_id: data.user.id,
+            display_name: displayName || email.split('@')[0],
+            email: email,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        } catch {
+          // ignore if table trigger already handled it
+        }
+      }
+
+      return {
+        requiresEmailConfirmation: !data.session,
+      };
+    }
+    return { error: new Error('Supabase is not configured') };
+  },
+
+  async signInWithGoogle(): Promise<{ url?: string; error?: Error | null }> {
+    if (isSupabaseConfigured() && supabase) {
+      const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+        },
+      });
+      if (error) return { error };
+      return { url: data.url };
+    }
+
+    return { error: new Error('Supabase is not configured') };
+  },
+
+  async signOut(): Promise<void> {
+    if (isSupabaseConfigured() && supabase) {
+      await supabase.auth.signOut();
+    }
+    localStorage.removeItem('cleartasks_auth_user');
+  },
+
+  async getProfile(userId: string): Promise<UserProfile | null> {
+    if (!userId) return null;
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, user_id, display_name, email, avatar_url, created_at, updated_at')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (data && !error) {
+        return {
+          id: data.id,
+          userId: data.user_id,
+          displayName: data.display_name,
+          email: data.email,
+          avatarUrl: data.avatar_url,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        };
+      }
+
+      // If profile record isn't created yet, fallback to user metadata from auth session
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData?.user;
+      if (currentUser && currentUser.id === userId) {
+        return {
+          id: currentUser.id,
+          userId: currentUser.id,
+          displayName:
+            currentUser.user_metadata?.full_name ||
+            currentUser.email?.split('@')[0] ||
+            'User',
+          email: currentUser.email || '',
+          avatarUrl: currentUser.user_metadata?.avatar_url || null,
+          createdAt: currentUser.created_at,
+          updatedAt: currentUser.updated_at || currentUser.created_at,
+        };
+      }
+    }
+
+    return null;
+  },
+};

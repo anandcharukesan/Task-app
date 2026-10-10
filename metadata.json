@@ -1,0 +1,6 @@
+{
+  "name": "ClearTasks — Minimal & Powerful Task Manager",
+  "description": "A fast, minimalist task management application inspired by Google Tasks with advanced recurrence engine, subtasks, lists, and cross-platform productivity.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

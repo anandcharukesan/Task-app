@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "ClearTasks",
+    "slug": "cleartasks",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "cleartasks",
+    "splash": {
+      "backgroundColor": "#202124",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cleartasks.app"
+    },
+    "android": {
+      "package": "com.cleartasks.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#202124"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
