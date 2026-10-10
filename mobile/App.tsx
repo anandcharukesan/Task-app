@@ -9,17 +9,51 @@ import {
   TouchableOpacity,
   BackHandler,
   Platform,
+  NativeModules,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import Constants from 'expo-constants';
 
 // In production, replace with your deployed Vercel URL
-// In development, set to your computer's local IP (e.g., 'http://192.168.1.50:3000')
 const PRODUCTION_URL = 'https://tasks-app-vercel.app';
-const DEV_URL = 'http://localhost:3000';
+
+function getDevUrl(): string {
+  try {
+    const hostUri =
+      Constants.expoConfig?.hostUri ||
+      (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
+      (Constants as any).manifest?.debuggerHost;
+
+    if (hostUri) {
+      const host = hostUri.split(':')[0];
+      if (host) {
+        return `http://${host}:3000`;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  try {
+    const scriptURL = NativeModules?.SourceCode?.scriptURL;
+    if (scriptURL) {
+      const address = scriptURL.split('://')[1]?.split('/')[0];
+      const host = address?.split(':')[0];
+      if (host) {
+        return `http://${host}:3000`;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  // Fallback to computer's local Wi-Fi IP
+  return 'http://192.168.1.5:3000';
+}
 
 declare const __DEV__: boolean | undefined;
 const isDev = typeof __DEV__ !== 'undefined' ? Boolean(__DEV__) : true;
-const APP_URL = isDev ? DEV_URL : PRODUCTION_URL;
+const APP_URL = isDev ? getDevUrl() : PRODUCTION_URL;
 
 export default function MobileApp() {
   const webViewRef = useRef<WebView>(null);
