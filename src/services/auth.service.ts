@@ -126,19 +126,54 @@ export const authService = {
         };
       }
 
-      // If profile record isn't created yet, fallback to user metadata from auth session
+      // If profile record isn't created yet, upsert it from auth session metadata
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData?.user;
       if (currentUser && currentUser.id === userId) {
+        const displayName =
+          currentUser.user_metadata?.full_name ||
+          currentUser.user_metadata?.name ||
+          currentUser.email?.split('@')[0] ||
+          'User';
+        const email = currentUser.email || '';
+        const avatarUrl = currentUser.user_metadata?.avatar_url || null;
+
+        try {
+          const { data: insertedData } = await supabase
+            .from('profiles')
+            .upsert(
+              {
+                user_id: currentUser.id,
+                display_name: displayName,
+                email: email,
+                avatar_url: avatarUrl,
+              },
+              { onConflict: 'user_id' }
+            )
+            .select('id, user_id, display_name, email, avatar_url, created_at, updated_at')
+            .single();
+
+          if (insertedData) {
+            return {
+              id: insertedData.id,
+              userId: insertedData.user_id,
+              displayName: insertedData.display_name,
+              email: insertedData.email,
+              avatarUrl: insertedData.avatar_url,
+              createdAt: insertedData.created_at,
+              updatedAt: insertedData.updated_at,
+            };
+          }
+        } catch {
+          // ignore if table error
+        }
+
         return {
           id: currentUser.id,
           userId: currentUser.id,
-          displayName:
-            currentUser.user_metadata?.full_name ||
-            currentUser.email?.split('@')[0] ||
-            'User',
-          email: currentUser.email || '',
-          avatarUrl: currentUser.user_metadata?.avatar_url || null,
+          displayName,
+          email,
+          avatarUrl,
           createdAt: currentUser.created_at,
           updatedAt: currentUser.updated_at || currentUser.created_at,
         };
