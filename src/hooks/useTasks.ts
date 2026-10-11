@@ -84,23 +84,39 @@ export function useTasks(userId: string, listId?: string) {
       taskService.completeTask(id, completed),
     onMutate: async ({ id, completed }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.tasks(userId, listId) });
-      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(userId, listId));
+      await queryClient.cancelQueries({ queryKey: queryKeys.task(id) });
 
+      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(userId, listId));
       if (previousTasks) {
         queryClient.setQueryData<Task[]>(
           queryKeys.tasks(userId, listId),
           previousTasks.map((t) => (t.id === id ? { ...t, completed } : t))
         );
       }
-      return { previousTasks };
+
+      const previousSingleTask = queryClient.getQueryData<Task>(queryKeys.task(id));
+      if (previousSingleTask) {
+        queryClient.setQueryData<Task>(queryKeys.task(id), {
+          ...previousSingleTask,
+          completed,
+        });
+      }
+
+      return { previousTasks, previousSingleTask };
     },
-    onError: (_err, _vars, context) => {
+    onError: (_err, vars, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(queryKeys.tasks(userId, listId), context.previousTasks);
       }
+      if (context?.previousSingleTask) {
+        queryClient.setQueryData(queryKeys.task(vars.id), context.previousSingleTask);
+      }
     },
-    onSettled: () => {
+    onSettled: (_data, _err, vars) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      if (vars?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.task(vars.id) });
+      }
     },
   });
 
@@ -116,6 +132,8 @@ export function useTasks(userId: string, listId?: string) {
       taskService.toggleStar(id, isStarred),
     onMutate: async ({ id, isStarred }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.tasks(userId, listId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.task(id) });
+
       const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(userId, listId));
       if (previousTasks) {
         queryClient.setQueryData<Task[]>(
@@ -123,15 +141,30 @@ export function useTasks(userId: string, listId?: string) {
           previousTasks.map((t) => (t.id === id ? { ...t, isStarred } : t))
         );
       }
-      return { previousTasks };
+
+      const previousSingleTask = queryClient.getQueryData<Task>(queryKeys.task(id));
+      if (previousSingleTask) {
+        queryClient.setQueryData<Task>(queryKeys.task(id), {
+          ...previousSingleTask,
+          isStarred,
+        });
+      }
+
+      return { previousTasks, previousSingleTask };
     },
-    onError: (_err, _vars, context) => {
+    onError: (_err, vars, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(queryKeys.tasks(userId, listId), context.previousTasks);
       }
+      if (context?.previousSingleTask) {
+        queryClient.setQueryData(queryKeys.task(vars.id), context.previousSingleTask);
+      }
     },
-    onSettled: () => {
+    onSettled: (_data, _err, vars) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      if (vars?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.task(vars.id) });
+      }
     },
   });
 

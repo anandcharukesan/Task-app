@@ -171,6 +171,12 @@ function TasksApp() {
     recurrence,
   } = useTask(selectedTaskId);
 
+  const effectiveSelectedTask =
+    selectedTask ||
+    tasks.find((t) => t.id === selectedTaskId) ||
+    allTasks.find((t) => t.id === selectedTaskId) ||
+    null;
+
   const {
     createSubtask,
     updateSubtask,
@@ -407,7 +413,7 @@ function TasksApp() {
       {/* Dedicated Task Details Page for Mobile */}
       {isMobile && selectedTaskId && (
         <TaskDetailPage
-          task={selectedTask || null}
+          task={effectiveSelectedTask}
           lists={lists}
           subtasks={subtasks}
           recurrence={recurrence || null}

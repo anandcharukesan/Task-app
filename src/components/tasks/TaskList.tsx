@@ -4,7 +4,7 @@ import { TaskItem } from './TaskItem';
 import { EmptyStarred } from '../common/EmptyStarred';
 import { TaskSortMenu } from './TaskSortMenu';
 import { TaskSortOption } from '../../store/uiStore';
-import { ChevronDown, ChevronRight, MoreVertical, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, MoreVertical, Plus, Check } from 'lucide-react';
 
 interface TaskListProps {
   listId: string;
@@ -197,6 +197,21 @@ export const TaskList: React.FC<TaskListProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Quick Add a Task Button on mobile */}
+        <div className="mb-2 px-1">
+          <button
+            type="button"
+            onClick={onOpenNewTask}
+            className="inline-flex items-center gap-2.5 text-[#0B57D0] dark:text-[#8AB4F8] hover:opacity-80 transition-opacity cursor-pointer font-medium text-sm py-1 select-none"
+          >
+            <div className="w-5 h-5 rounded-full border-2 border-[#0B57D0] dark:border-[#8AB4F8] flex items-center justify-center relative shrink-0">
+              <Check size={11} strokeWidth={2.8} className="text-[#0B57D0] dark:text-[#8AB4F8]" />
+              <span className="absolute -top-1 -right-1 text-[9px] font-bold text-[#0B57D0] dark:text-[#8AB4F8] leading-none">+</span>
+            </div>
+            <span>{isStarredList ? 'Add a starred task' : 'Add a task'}</span>
+          </button>
         </div>
 
         {/* Empty States */}

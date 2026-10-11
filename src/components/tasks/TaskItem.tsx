@@ -498,7 +498,7 @@ export const TaskItem: React.FC<TaskItemProps> = React.memo(({
                       type="button"
                       onClick={() => {
                         setIsMenuOpen(false);
-                        setIsRepeatMenuOpen(true);
+                        setIsCustomRepeatOpen(true);
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2 text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer text-left"
                     >
@@ -767,20 +767,22 @@ export const TaskItem: React.FC<TaskItemProps> = React.memo(({
         <RepeatModal
           isOpen={isCustomRepeatOpen}
           onClose={() => setIsCustomRepeatOpen(false)}
-          initialRule={task.recurrence || ({ frequency: 'day', interval: 1 } as any)}
-          currentRule={task.recurrence || ({ frequency: 'day', interval: 1 } as any)}
+          initialRule={task.recurrence || null}
+          currentRule={task.recurrence || null}
           initialDueDate={task.dueDate || undefined}
           initialDueTime={task.dueTime || undefined}
           onSave={(rule) => {
             if (onUpdateTask) {
+              const ruleStartDate = rule.startDate || format(new Date(), 'yyyy-MM-dd');
               onUpdateTask(task.id, {
                 isRecurring: true,
                 recurrence: rule as any,
+                dueDate: task.dueDate || ruleStartDate,
               });
             }
             setIsCustomRepeatOpen(false);
           }}
-          onRemove={handleRemoveRepeat}
+          onRemove={isRecurring ? handleRemoveRepeat : undefined}
         />
       )}
     </div>

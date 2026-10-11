@@ -80,6 +80,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(Boolean(task?.completed));
   const [dueDate, setDueDate] = useState('');
   const [dueTime, setDueTime] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -97,6 +98,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
     if (task) {
       setTitle(task.title || '');
       setNotes(task.notes || '');
+      setIsCompleted(Boolean(task.completed));
       setDueDate(task.dueDate || '');
       setDueTime(task.dueTime || '');
       setDeadline(task.deadline || '');
@@ -142,6 +144,20 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
     if (!newSubtaskTitle.trim()) return;
     await onCreateSubtask(task.id, newSubtaskTitle.trim());
     setNewSubtaskTitle('');
+  };
+
+  const handleToggleComplete = async () => {
+    const nextStatus = !isCompleted;
+    setIsCompleted(nextStatus);
+    try {
+      await onToggleComplete(task.id, nextStatus);
+    } catch (err) {
+      console.error('Failed to toggle task completion:', err);
+    }
+    // Automatically navigate back to list view
+    setTimeout(() => {
+      onClose();
+    }, 150);
   };
 
   const isStarred = Boolean(task.isStarred);
@@ -247,7 +263,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
             onBlur={handleTitleBlur}
             placeholder="Task title"
             className={`w-full text-[28px] sm:text-[32px] font-normal bg-transparent border-none outline-none resize-none leading-tight ${
-              task.completed ? 'line-through text-[#747775] dark:text-[#8E918F]' : 'text-[#1F1F1F] dark:text-[#E3E3E3]'
+              isCompleted ? 'line-through text-[#747775] dark:text-[#8E918F]' : 'text-[#1F1F1F] dark:text-[#E3E3E3]'
             }`}
           />
         </div>
@@ -419,12 +435,11 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       <div className="fixed bottom-6 right-5 z-20">
         <button
           type="button"
-          onClick={async () => {
-            await onToggleComplete(task.id, !task.completed);
-          }}
-          className="rounded-full bg-[#111111] dark:bg-white text-white dark:text-[#111111] px-6 py-3.5 text-sm font-semibold shadow-xl hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+          onClick={handleToggleComplete}
+          className="rounded-full bg-[#111111] dark:bg-white text-white dark:text-[#111111] px-6 py-3.5 text-sm font-semibold shadow-xl hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer select-none"
         >
-          {task.completed ? 'Mark uncompleted' : 'Mark completed'}
+          {isCompleted && <Check size={16} strokeWidth={2.5} />}
+          <span>{isCompleted ? 'Mark uncompleted' : 'Mark completed'}</span>
         </button>
       </div>
 

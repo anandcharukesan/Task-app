@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
-import { AlignLeft, Clock, ChevronDown, X } from 'lucide-react';
+import { AlignLeft, Clock, ChevronDown, X, Star, Repeat as RepeatIcon } from 'lucide-react';
 import { TaskList } from '../../types/list';
 import { RecurrenceRule } from '../../types/recurrence';
 import { GoogleDatePickerModal } from '../common/GoogleDatePickerModal';
@@ -38,27 +38,39 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [isAllDay, setIsAllDay] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | null>(null);
 
+  const [showDetails, setShowDetails] = useState(false);
+  const [isStarred, setIsStarred] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
   const [showRepeatDropdown, setShowRepeatDropdown] = useState(false);
   const [showListPicker, setShowListPicker] = useState(false);
   const [selectedListId, setSelectedListId] = useState(defaultListId);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const detailsTextareaRef = useRef<HTMLTextAreaElement>(null);
   const repeatDropdownRef = useRef<HTMLDivElement>(null);
   const listDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Initialize values when opened
   useEffect(() => {
     if (isOpen) {
       setTitle('');
       setNotes('');
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      setDueDate(todayStr);
+      setDueDate('');
       setDueTime('15:00');
       setIsAllDay(false);
       setRecurrenceRule(null);
+      setShowDetails(false);
+      setIsStarred(defaultListId === 'starred');
       setShowRepeatDropdown(false);
       setShowListPicker(false);
       setSelectedListId(
@@ -68,7 +80,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       );
       setTimeout(() => {
         inputRef.current?.focus();
-      }, 50);
+      }, 60);
     }
   }, [isOpen, defaultListId, lists]);
 
@@ -106,7 +118,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
           return dueDate;
         }
       })()
-    : format(new Date(), 'd MMMM');
+    : 'Date';
 
   const recurrenceLabel = recurrenceRule
     ? formatRecurrenceRule(recurrenceRule)
@@ -123,7 +135,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
         notes: notes.trim() || undefined,
         dueDate: dueDate || undefined,
         dueTime: isAllDay ? undefined : dueTime || undefined,
-        isStarred: false,
+        isStarred: isStarred,
         isRecurring: Boolean(recurrenceRule),
         recurrenceRule: recurrenceRule || undefined,
         listId: currentList.id,
@@ -137,7 +149,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-150">
+    <div className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-150 ${
+      isMobile ? 'flex flex-col justify-end' : 'flex items-center justify-center p-4'
+    }`}>
       {/* Backdrop */}
       <div
         className="fixed inset-0"
@@ -145,8 +159,205 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
         aria-hidden="true"
       />
 
-      {/* Floating Modal Window - Matching Google Tasks Create Modal */}
-      <div className="relative w-full max-w-[480px] bg-white dark:bg-[#282A2C] rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.25)] p-6 z-10 animate-in zoom-in-95 duration-150 flex flex-col gap-5">
+      {/* Mobile: Google Tasks Bottom Sheet (Matching official mobile UI) */}
+      {isMobile ? (
+        <div
+          className="relative w-full bg-white dark:bg-[#1E1F20] rounded-t-[28px] shadow-[0_-8px_30px_rgba(0,0,0,0.18)] px-5 pt-4 pb-3 flex flex-col z-10 animate-in slide-in-from-bottom duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <form onSubmit={handleSave} className="flex flex-col">
+            {/* Title Input */}
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setShowDetails(true);
+                  setTimeout(() => detailsTextareaRef.current?.focus(), 10);
+                }
+              }}
+              placeholder="New task"
+              autoFocus
+              className="w-full text-[16.5px] font-normal text-[#1F1F1F] dark:text-[#E3E3E3] placeholder-[#747775] dark:placeholder-[#8E918F] bg-transparent border-none outline-none py-1 focus:ring-0"
+            />
+
+            {/* Details / Description Textarea (visible when toggled or has content) */}
+            {(showDetails || notes.length > 0) && (
+              <textarea
+                ref={detailsTextareaRef}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add details"
+                rows={2}
+                className="w-full text-[14px] leading-relaxed text-[#444746] dark:text-[#C4C7C5] placeholder-[#747775] dark:placeholder-[#8E918F] bg-transparent border-none outline-none py-1 resize-none focus:ring-0"
+              />
+            )}
+
+            {/* Chips row (Date, Recurrence, List) if active */}
+            {(dueDate || recurrenceRule || (lists.length > 1 && selectedListId !== defaultListId)) && (
+              <div className="flex items-center gap-2 flex-wrap py-1.5">
+                {/* Date chip */}
+                {dueDate && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#E8F0FE] dark:bg-[#1A3A60] text-[#0B57D0] dark:text-[#8AB4F8] rounded-full text-xs font-medium">
+                    <Clock size={12} />
+                    <span onClick={() => setIsDatePickerOpen(true)} className="cursor-pointer">
+                      {formattedDate}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDueDate('')}
+                      className="p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full cursor-pointer ml-0.5"
+                      aria-label="Remove due date"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Recurrence chip */}
+                {recurrenceRule && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#E8F0FE] dark:bg-[#1A3A60] text-[#0B57D0] dark:text-[#8AB4F8] rounded-full text-xs font-medium">
+                    <RepeatIcon size={12} />
+                    <span onClick={() => setIsDatePickerOpen(true)} className="cursor-pointer">
+                      {recurrenceLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRecurrenceRule(null)}
+                      className="p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full cursor-pointer ml-0.5"
+                      aria-label="Remove recurrence"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                )}
+
+                {/* List chip */}
+                {lists.length > 1 && selectedListId !== defaultListId && (
+                  <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#F1F3F4] dark:bg-[#2B2C2F] text-[#444746] dark:text-[#C4C7C5] rounded-full text-xs font-medium">
+                    <span className="max-w-[90px] truncate">{currentList.name}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Row: Icons on Left, Text 'Save' on Right (exact match to screenshot) */}
+            <div className="flex items-center justify-between pt-3">
+              <div className="flex items-center gap-5">
+                {/* Details / Description icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDetails((prev) => !prev);
+                    setTimeout(() => detailsTextareaRef.current?.focus(), 10);
+                  }}
+                  className={`p-1 -ml-1 transition-colors cursor-pointer select-none ${
+                    showDetails || notes
+                      ? 'text-[#0B57D0] dark:text-[#8AB4F8]'
+                      : 'text-[#444746] dark:text-[#C4C7C5] hover:text-[#1F1F1F] dark:hover:text-[#FFFFFF]'
+                  }`}
+                  title="Add details"
+                  aria-label="Add details"
+                >
+                  <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="16" y2="12" />
+                    <line x1="3" y1="18" x2="11" y2="18" />
+                  </svg>
+                </button>
+
+                {/* Clock / Date icon */}
+                <button
+                  type="button"
+                  onClick={() => setIsDatePickerOpen(true)}
+                  className={`p-1 transition-colors cursor-pointer select-none ${
+                    dueDate
+                      ? 'text-[#0B57D0] dark:text-[#8AB4F8]'
+                      : 'text-[#444746] dark:text-[#C4C7C5] hover:text-[#1F1F1F] dark:hover:text-[#FFFFFF]'
+                  }`}
+                  title="Set date and time"
+                  aria-label="Set date and time"
+                >
+                  <Clock size={22} strokeWidth={1.8} />
+                </button>
+
+                {/* Star icon */}
+                <button
+                  type="button"
+                  onClick={() => setIsStarred(!isStarred)}
+                  className={`p-1 transition-colors cursor-pointer select-none ${
+                    isStarred
+                      ? 'text-amber-500 fill-amber-500'
+                      : 'text-[#444746] dark:text-[#C4C7C5] hover:text-[#1F1F1F] dark:hover:text-[#FFFFFF]'
+                  }`}
+                  title="Star task"
+                  aria-label="Star task"
+                >
+                  <Star
+                    size={22}
+                    strokeWidth={1.8}
+                    className={isStarred ? 'fill-amber-400 text-amber-500' : ''}
+                  />
+                </button>
+
+                {/* List selector dropdown if multiple lists */}
+                {lists.length > 1 && (
+                  <div className="relative" ref={listDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowListPicker(!showListPicker)}
+                      className="flex items-center gap-1 text-xs text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#1F1F1F] dark:hover:text-[#FFFFFF] transition-colors cursor-pointer select-none py-1"
+                    >
+                      <span className="max-w-[75px] truncate">{currentList.name}</span>
+                      <ChevronDown size={12} />
+                    </button>
+
+                    {showListPicker && (
+                      <div className="absolute bottom-full left-0 mb-2 w-44 bg-white dark:bg-[#282A2C] rounded-2xl shadow-xl border border-[#DADCE0] dark:border-[#3C4043] py-1 z-50 animate-in fade-in zoom-in-95">
+                        {lists.map((l) => (
+                          <button
+                            key={l.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedListId(l.id);
+                              setShowListPicker(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs truncate cursor-pointer ${
+                              selectedListId === l.id
+                                ? 'text-[#0B57D0] font-semibold bg-[#E8F0FE] dark:bg-[#1A3A60]'
+                                : 'text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043]'
+                            }`}
+                          >
+                            {l.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Plain Text Save Button matching user screenshot */}
+              <button
+                type="submit"
+                disabled={!title.trim() || isSubmitting}
+                className={`text-[15px] font-medium transition-colors select-none py-1 px-1 ${
+                  title.trim() && !isSubmitting
+                    ? 'text-[#0B57D0] dark:text-[#8AB4F8] font-semibold hover:opacity-80 active:opacity-60 cursor-pointer'
+                    : 'text-[#C4C7C5] dark:text-[#5F6368] cursor-not-allowed font-medium'
+                }`}
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        /* Desktop: Floating Modal Window - Matching Google Tasks Create Modal */
+        <div className="relative w-full max-w-[480px] bg-white dark:bg-[#282A2C] rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.25)] p-6 z-10 animate-in zoom-in-95 duration-150 flex flex-col gap-5">
         {/* Top-Right Close Button */}
         <button
           type="button"
@@ -379,6 +590,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
           </div>
         </form>
       </div>
+      )}
 
       {/* Date & Time Picker Modal */}
       {isDatePickerOpen && (
