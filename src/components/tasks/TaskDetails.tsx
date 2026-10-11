@@ -7,6 +7,7 @@ import { IconButton } from '../common/IconButton';
 import { Button } from '../common/Button';
 import { SubtaskItem } from './SubtaskItem';
 import { RepeatModal } from '../recurrence/RepeatModal';
+import { GoogleDatePickerModal } from '../common/GoogleDatePickerModal';
 import { formatRecurrenceRule } from '../../lib/recurrence/recurrenceUtils';
 import { getTodayDateString } from '../../lib/date/dateUtils';
 import {
@@ -61,6 +62,7 @@ export const TaskDetails: React.FC<TaskDetailsProps> = ({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -183,45 +185,27 @@ export const TaskDetails: React.FC<TaskDetailsProps> = ({
 
         {/* Date & Time Section */}
         <div className="flex flex-col gap-2.5">
-          {/* Due Date */}
           <div className="flex items-center gap-3 text-sm">
             <Calendar size={18} className="shrink-0 text-[#5F6368] dark:text-[#9AA0A6]" />
             <div className="flex-1 flex items-center gap-2">
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="text-xs px-2.5 py-1.5 bg-[#F8F9FA] dark:bg-[#292A2D] text-[#202124] dark:text-[#E8EAED] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg outline-none focus:border-[#1A73E8]"
-              />
-              {dueDate && (
+              <button
+                type="button"
+                onClick={() => setIsDatePickerOpen(true)}
+                className="text-xs px-2.5 py-1.5 bg-[#F8F9FA] dark:bg-[#292A2D] text-[#202124] dark:text-[#E8EAED] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg hover:border-[#1A73E8] cursor-pointer text-left"
+              >
+                {dueDate ? dueDate : 'Set date & time'}
+                {dueTime ? ` at ${dueTime}` : ''}
+              </button>
+              {(dueDate || dueTime) && (
                 <button
                   type="button"
-                  onClick={() => handleDateChange('')}
-                  className="text-xs text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#D93025]"
+                  onClick={() => {
+                    handleDateChange('');
+                    handleTimeChange('');
+                  }}
+                  className="text-xs text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#D93025] cursor-pointer"
                 >
-                  Clear date
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Due Time */}
-          <div className="flex items-center gap-3 text-sm">
-            <Clock size={18} className="shrink-0 text-[#5F6368] dark:text-[#9AA0A6]" />
-            <div className="flex-1 flex items-center gap-2">
-              <input
-                type="time"
-                value={dueTime}
-                onChange={(e) => handleTimeChange(e.target.value)}
-                className="text-xs px-2.5 py-1.5 bg-[#F8F9FA] dark:bg-[#292A2D] text-[#202124] dark:text-[#E8EAED] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg outline-none focus:border-[#1A73E8]"
-              />
-              {dueTime && (
-                <button
-                  type="button"
-                  onClick={() => handleTimeChange('')}
-                  className="text-xs text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#D93025]"
-                >
-                  Clear time
+                  Clear
                 </button>
               )}
             </div>
@@ -362,6 +346,29 @@ export const TaskDetails: React.FC<TaskDetailsProps> = ({
           }}
         />
       )}
+
+      {/* Google Tasks Authentic Date, Time & Repeat Picker */}
+      <GoogleDatePickerModal
+        isOpen={isDatePickerOpen}
+        onClose={() => setIsDatePickerOpen(false)}
+        initialDate={dueDate}
+        initialTime={dueTime}
+        initialRecurrence={recurrence}
+        onSave={async (data) => {
+          setDueDate(data.date);
+          setDueTime(data.time);
+          await onUpdateTask(task.id, {
+            dueDate: data.date || null,
+            dueTime: data.time || null,
+            isRecurring: Boolean(data.recurrence),
+          });
+          if (data.recurrence) {
+            await onSaveRecurrence(task.id, data.recurrence);
+          } else if (task.isRecurring) {
+            await onDeleteRecurrence(task.id);
+          }
+        }}
+      />
     </div>
   );
 };

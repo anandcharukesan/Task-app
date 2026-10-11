@@ -3,13 +3,35 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authService } from '../services/auth.service';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { queryKeys } from '../constants/queryKeys';
+import { AuthSession } from '../types/user';
+
+function getCachedSession(): AuthSession {
+  try {
+    const raw = localStorage.getItem('cleartasks_auth_user');
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return { user: null, accessToken: null };
+}
 
 export function useAuth() {
   const queryClient = useQueryClient();
 
   const sessionQuery = useQuery({
     queryKey: ['auth-session'],
-    queryFn: () => authService.getSession(),
+    queryFn: async () => {
+      const session = await authService.getSession();
+      if (session.user) {
+        try {
+          localStorage.setItem('cleartasks_auth_user', JSON.stringify(session));
+        } catch {
+          // ignore
+        }
+      }
+      return session;
+    },
+    initialData: getCachedSession(),
     staleTime: 1000 * 60 * 15,
   });
 
@@ -22,10 +44,20 @@ export function useAuth() {
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
-        queryClient.setQueryData(['auth-session'], {
+        const authSession: AuthSession = {
           user: session?.user || null,
           accessToken: session?.access_token || null,
-        });
+        };
+        if (session?.user) {
+          try {
+            localStorage.setItem('cleartasks_auth_user', JSON.stringify(authSession));
+          } catch {
+            // ignore
+          }
+        } else {
+          localStorage.removeItem('cleartasks_auth_user');
+        }
+        queryClient.setQueryData(['auth-session'], authSession);
         queryClient.invalidateQueries({ queryKey: queryKeys.profile });
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['task-lists'] });
@@ -93,7 +125,9 @@ export function useAuth() {
   const signOutMutation = useMutation({
     mutationFn: () => authService.signOut(),
     onSuccess: () => {
+      localStorage.removeItem('cleartasks_auth_user');
       queryClient.clear();
+      queryClient.setQueryData(['auth-session'], { user: null, accessToken: null });
       queryClient.invalidateQueries({ queryKey: ['auth-session'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.profile });
     },

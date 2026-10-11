@@ -2,13 +2,14 @@ import React from 'react';
 import { Task } from '../../types/task';
 import { Checkbox } from '../common/Checkbox';
 import { formatDueDate, isOverdue } from '../../lib/date/dateUtils';
-import { Repeat, Calendar, CheckSquare } from 'lucide-react';
+import { Repeat, Calendar, CheckSquare, Star } from 'lucide-react';
 
 interface TaskItemProps {
   task: Task;
   isSelected?: boolean;
   onSelect: () => void;
   onToggleComplete: (completed: boolean) => void;
+  onToggleStar?: (isStarred: boolean) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = React.memo(({
@@ -16,6 +17,7 @@ export const TaskItem: React.FC<TaskItemProps> = React.memo(({
   isSelected = false,
   onSelect,
   onToggleComplete,
+  onToggleStar,
 }) => {
   const overdue = !task.completed && isOverdue(task.dueDate, task.dueTime);
   const formattedDate = formatDueDate(task.dueDate, task.dueTime);
@@ -117,6 +119,28 @@ export const TaskItem: React.FC<TaskItemProps> = React.memo(({
           </div>
         )}
       </div>
+
+      {/* Right Star Toggle Button */}
+      {onToggleStar && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStar(!task.isStarred);
+          }}
+          className="p-1 rounded-full text-[#747775] hover:text-[#1F1F1F] dark:hover:text-white transition-colors focus:outline-none shrink-0"
+          aria-label={task.isStarred ? 'Unstar task' : 'Star task'}
+        >
+          <Star
+            size={18}
+            className={
+              task.isStarred
+                ? 'text-[#F4B400] fill-[#F4B400]'
+                : 'text-[#747775] dark:text-[#8E918F]'
+            }
+          />
+        </button>
+      )}
     </div>
   );
 });

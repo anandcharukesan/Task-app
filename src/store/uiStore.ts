@@ -39,6 +39,16 @@ const getInitialTheme = (): ThemeMode => {
   return 'light';
 };
 
+function notifyNativeTheme(theme: ThemeMode) {
+  if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+    try {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'THEME_CHANGE', theme }));
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export const useUIStore = create<UIState>((set) => ({
   theme: getInitialTheme(),
   selectedListId: '',
@@ -58,6 +68,7 @@ export const useUIStore = create<UIState>((set) => ({
     } else {
       document.documentElement.classList.remove('dark');
     }
+    notifyNativeTheme(theme);
     set({ theme });
   },
 
@@ -70,6 +81,7 @@ export const useUIStore = create<UIState>((set) => ({
       } else {
         document.documentElement.classList.remove('dark');
       }
+      notifyNativeTheme(next);
       return { theme: next };
     }),
 

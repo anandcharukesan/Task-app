@@ -1,86 +1,37 @@
 import React from 'react';
-import { Menu, Search, X, LogIn } from 'lucide-react';
-import { IconButton } from './IconButton';
-import { TaskSortMenu } from '../tasks/TaskSortMenu';
-import { TaskSortOption } from '../../store/uiStore';
+import { User, LogIn } from 'lucide-react';
 import { UserProfile } from '../../types/user';
 
 interface HeaderProps {
-  currentListName: string;
-  searchQuery: string;
-  sortBy: TaskSortOption;
   profile: UserProfile | null;
-  onToggleSidebar: () => void;
-  onSearchChange: (query: string) => void;
-  onChangeSort: (sort: TaskSortOption) => void;
   onOpenSettings: () => void;
   onOpenAuth?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  currentListName,
-  searchQuery,
-  sortBy,
   profile,
-  onToggleSidebar,
-  onSearchChange,
-  onChangeSort,
   onOpenSettings,
   onOpenAuth,
 }) => {
   return (
-    <header className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[#DADCE0] dark:border-[#3C4043] bg-white dark:bg-[#202124] shrink-0 z-20">
-      {/* Left section: Hamburger + Title */}
-      <div className="flex items-center gap-3">
-        <IconButton
-          icon={<Menu size={20} />}
-          aria-label="Toggle navigation drawer"
-          onClick={onToggleSidebar}
-          size="md"
-        />
-        <h2 className="text-lg font-semibold tracking-tight text-[#202124] dark:text-[#E8EAED] truncate max-w-[180px] sm:max-w-xs">
-          {currentListName}
-        </h2>
-      </div>
+    <header className="pt-2 pb-1 px-4 sm:px-6 flex items-center justify-between bg-[#F0F4F9] dark:bg-[#131314] shrink-0 z-20">
+      {/* Left empty balancing spacer (no hamburger) */}
+      <div className="w-9" />
 
-      {/* Center Search Input */}
-      <div className="flex-1 max-w-md mx-3">
-        <div className="relative flex items-center">
-          <Search
-            size={16}
-            className="absolute left-3 text-[#5F6368] dark:text-[#9AA0A6] pointer-events-none"
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search tasks..."
-            className="w-full text-xs sm:text-sm pl-9 pr-8 py-2 bg-[#F1F3F4] dark:bg-[#292A2D] text-[#202124] dark:text-[#E8EAED] placeholder:text-[#80868B] dark:placeholder:text-[#9AA0A6] rounded-full border border-transparent focus:border-[#1A73E8] focus:bg-white dark:focus:bg-[#202124] focus:outline-none transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange('')}
-              className="absolute right-2.5 text-[#5F6368] hover:text-[#202124] dark:text-[#9AA0A6] p-0.5"
-              aria-label="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Centered App Title: Tasks */}
+      <h1 className="text-xl font-normal text-[#1F1F1F] dark:text-[#E3E3E3] tracking-tight text-center font-sans">
+        Tasks
+      </h1>
 
-      {/* Right controls */}
-      <div className="flex items-center gap-2">
-        <TaskSortMenu currentSort={sortBy} onChangeSort={onChangeSort} />
-
+      {/* Right User Avatar */}
+      <div className="flex items-center justify-end w-9">
         {profile ? (
           <button
             type="button"
             onClick={onOpenSettings}
-            className="w-8 h-8 rounded-full overflow-hidden border border-[#DADCE0] dark:border-[#3C4043] focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            className="w-8 h-8 rounded-full overflow-hidden border border-[#DADCE0] dark:border-[#3C4043] focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs active:scale-95 transition-transform"
             aria-label="Open profile settings"
-            title={profile.displayName || profile.email || undefined}
+            title={profile.displayName || profile.email || 'Profile'}
           >
             {profile.avatarUrl ? (
               <img
@@ -98,10 +49,11 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenAuth || onOpenSettings}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A73E8] hover:bg-[#1557B0] text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#E1E3E1] dark:bg-[#2F3033] hover:bg-[#D3D6D4] text-[#444746] dark:text-[#C4C7C5] flex items-center justify-center cursor-pointer transition-colors"
+            title="Sign in"
+            aria-label="Sign In"
           >
-            <LogIn size={14} />
-            <span>Sign In</span>
+            <User size={18} />
           </button>
         )}
       </div>

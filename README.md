@@ -39,14 +39,26 @@ npm run preview
 
 ClearTasks includes a built-in Expo native container with hardware back button support, safe area handling, and touch bottom sheets.
 
-### 1. Start Expo
+### Option A: Run Both Web & Mobile in One Command (Recommended)
 ```bash
-npm run mobile
+npm run dev:mobile
 ```
+*(Starts the local web dev server on port 3000 and the Expo Metro bundler together).*
 
-### 2. Open on Your Phone
+### Option B: Run in Separate Terminals
+1. In Terminal 1, start the web server:
+   ```bash
+   npm run dev
+   ```
+2. In Terminal 2, start Expo:
+   ```bash
+   npm run mobile
+   ```
+
+### Open on Your Phone
 1. Install **Expo Go** from the App Store (iOS) or Google Play Store (Android).
-2. Scan the QR code displayed in your terminal:
+2. Ensure your phone is connected to the **same Wi-Fi network** as your computer.
+3. Scan the QR code displayed in your terminal:
    - **Android**: Scan with the Expo Go app.
    - **iOS**: Scan with the Camera app and tap the Expo banner.
 

@@ -14,6 +14,43 @@ const INITIAL_DEMO_TASKS: Task[] = [];
 const INITIAL_DEMO_SUBTASKS: Subtask[] = [];
 const INITIAL_DEMO_RECURRENCES: RecurrenceRule[] = [];
 
+const STORAGE_STARRED_KEY = 'cleartasks_starred_tasks_v1';
+const STORAGE_DEADLINES_KEY = 'cleartasks_deadlines_v1';
+
+function getDeadlineMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_DEADLINES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setDeadlineMap(map: Record<string, string>): void {
+  try {
+    localStorage.setItem(STORAGE_DEADLINES_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+function getStarredMap(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_STARRED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setStarredMap(map: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(STORAGE_STARRED_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
 function getStored<T>(key: string, initial: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -39,6 +76,10 @@ export const taskService = {
   async getTasks(userId: string, listId?: string): Promise<Task[]> {
     if (!userId) return [];
 
+    const isStarredList = listId === 'starred';
+    const starredMap = getStarredMap();
+    const deadlineMap = getDeadlineMap();
+
     if (isSupabaseConfigured() && supabase) {
       let query = supabase
         .from('tasks')
@@ -48,7 +89,7 @@ export const taskService = {
         `)
         .eq('user_id', userId);
 
-      if (listId) {
+      if (listId && !isStarredList) {
         query = query.eq('list_id', listId);
       }
 
@@ -59,7 +100,7 @@ export const taskService = {
 
       if (error) throw error;
 
-      return (data || []).map((row) => ({
+      const tasks: Task[] = (data || []).map((row) => ({
         id: row.id,
         userId: row.user_id,
         listId: row.list_id,
@@ -71,16 +112,69 @@ export const taskService = {
         dueTime: row.due_time,
         isRecurring: row.is_recurring,
         recurrenceId: row.recurrence_id,
+        isStarred: Boolean(starredMap[row.id]),
+        deadline: deadlineMap[row.id] || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
+
+      if (isStarredList) {
+        return tasks.filter((t) => t.isStarred);
+      }
+
+      return tasks;
     }
 
-    const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS);
+    const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS).map((t) => ({
+      ...t,
+      isStarred: Boolean(starredMap[t.id] ?? t.isStarred),
+      deadline: deadlineMap[t.id] || t.deadline || null,
+    }));
+
+    if (isStarredList) {
+      return tasks.filter((t) => t.isStarred);
+    }
+
     if (listId) {
       return tasks.filter((t) => t.listId === listId);
     }
     return tasks;
+  },
+
+  async toggleStar(id: string, isStarred: boolean): Promise<void> {
+    const map = getStarredMap();
+    if (isStarred) {
+      map[id] = true;
+    } else {
+      delete map[id];
+    }
+    setStarredMap(map);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('tasks').update({ is_starred: isStarred }).eq('id', id);
+      } catch {
+        // ignore if database column does not exist
+      }
+    }
+  },
+
+  async deleteCompletedTasks(userId: string, listId?: string): Promise<void> {
+    if (isSupabaseConfigured() && supabase) {
+      let query = supabase.from('tasks').delete().eq('user_id', userId).eq('completed', true);
+      if (listId && listId !== 'starred') {
+        query = query.eq('list_id', listId);
+      }
+      const { error } = await query;
+      if (error) console.error('Error deleting completed tasks:', error);
+      return;
+    }
+
+    const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, []);
+    const remaining = tasks.filter(
+      (t) => !(t.completed && (!listId || listId === 'starred' || t.listId === listId))
+    );
+    setStored(STORAGE_TASKS_KEY, remaining);
   },
 
   async getTask(id: string): Promise<Task | null> {
@@ -108,13 +202,21 @@ export const taskService = {
         dueTime: data.due_time,
         isRecurring: data.is_recurring,
         recurrenceId: data.recurrence_id,
+        isStarred: Boolean(getStarredMap()[data.id]),
+        deadline: getDeadlineMap()[data.id] || null,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
     }
 
     const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS);
-    return tasks.find((t) => t.id === id) || null;
+    const found = tasks.find((t) => t.id === id);
+    if (!found) return null;
+    return {
+      ...found,
+      isStarred: Boolean(getStarredMap()[found.id] ?? found.isStarred),
+      deadline: getDeadlineMap()[found.id] || found.deadline || null,
+    };
   },
 
   async createTask(userId: string, input: CreateTaskInput): Promise<Task> {
@@ -214,6 +316,18 @@ export const taskService = {
         }
       }
 
+      if (input.isStarred) {
+        const map = getStarredMap();
+        map[data.id] = true;
+        setStarredMap(map);
+      }
+
+      if (input.deadline) {
+        const dMap = getDeadlineMap();
+        dMap[data.id] = input.deadline;
+        setDeadlineMap(dMap);
+      }
+
       return {
         id: data.id,
         userId: data.user_id,
@@ -226,6 +340,8 @@ export const taskService = {
         dueTime: data.due_time,
         isRecurring: Boolean(input.isRecurring),
         recurrenceId: createdRecurrenceId,
+        isStarred: Boolean(input.isStarred),
+        deadline: input.deadline || null,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
@@ -233,6 +349,18 @@ export const taskService = {
 
     const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS);
     let recId: string | null = null;
+
+    if (input.isStarred) {
+      const map = getStarredMap();
+      map[taskId] = true;
+      setStarredMap(map);
+    }
+
+    if (input.deadline) {
+      const dMap = getDeadlineMap();
+      dMap[taskId] = input.deadline;
+      setDeadlineMap(dMap);
+    }
 
     if (input.isRecurring && input.recurrence) {
       recId = `rec-${Date.now()}`;
@@ -272,6 +400,8 @@ export const taskService = {
       dueTime: input.dueTime ?? null,
       isRecurring: Boolean(input.isRecurring),
       recurrenceId: recId,
+      isStarred: Boolean(input.isStarred),
+      deadline: input.deadline || null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -282,6 +412,26 @@ export const taskService = {
   },
 
   async updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
+    if (input.deadline !== undefined) {
+      const dMap = getDeadlineMap();
+      if (input.deadline) {
+        dMap[id] = input.deadline;
+      } else {
+        delete dMap[id];
+      }
+      setDeadlineMap(dMap);
+    }
+
+    if (input.isStarred !== undefined) {
+      const sMap = getStarredMap();
+      if (input.isStarred) {
+        sMap[id] = true;
+      } else {
+        delete sMap[id];
+      }
+      setStarredMap(sMap);
+    }
+
     if (isSupabaseConfigured() && supabase) {
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -320,6 +470,8 @@ export const taskService = {
         dueTime: data.due_time,
         isRecurring: data.is_recurring,
         recurrenceId: data.recurrence_id,
+        isStarred: Boolean(getStarredMap()[data.id]),
+        deadline: getDeadlineMap()[data.id] || null,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
@@ -340,6 +492,8 @@ export const taskService = {
       ...(input.listId !== undefined && { listId: input.listId }),
       ...(input.isRecurring !== undefined && { isRecurring: input.isRecurring }),
       ...(input.recurrenceId !== undefined && { recurrenceId: input.recurrenceId }),
+      ...(input.deadline !== undefined && { deadline: input.deadline }),
+      ...(input.isStarred !== undefined && { isStarred: input.isStarred }),
       updatedAt: new Date().toISOString(),
     };
 

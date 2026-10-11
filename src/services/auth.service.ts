@@ -8,10 +8,18 @@ export const authService = {
       if (error) {
         console.error('Supabase getSession error:', error);
       }
-      return {
-        user: data.session?.user || null,
-        accessToken: data.session?.access_token || null,
-      };
+      if (data.session?.user) {
+        const session = {
+          user: data.session.user,
+          accessToken: data.session.access_token || null,
+        };
+        try {
+          localStorage.setItem('cleartasks_auth_user', JSON.stringify(session));
+        } catch {
+          // ignore
+        }
+        return session;
+      }
     }
 
     // Offline / Local storage fallback if session exists
@@ -91,7 +99,10 @@ export const authService = {
         },
       });
       if (error) return { error };
-      return { url: data.url };
+      if (data?.url && typeof window !== 'undefined') {
+        window.location.assign(data.url);
+      }
+      return { url: data?.url || undefined };
     }
 
     return { error: new Error('Supabase is not configured') };
