@@ -89,7 +89,7 @@ export const taskService = {
         `)
         .eq('user_id', userId);
 
-      if (listId && !isStarredList) {
+      if (listId && !isStarredList && listId !== 'all') {
         query = query.eq('list_id', listId);
       }
 
@@ -99,6 +99,35 @@ export const taskService = {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
+      let taskSubtasks: Record<string, Subtask[]> = {};
+      const taskIds = (data || []).map((r) => r.id);
+      if (taskIds.length > 0) {
+        try {
+          const { data: subData } = await supabase
+            .from('subtasks')
+            .select('id, task_id, title, completed, position, created_at, updated_at')
+            .in('task_id', taskIds)
+            .order('position', { ascending: true })
+            .order('created_at', { ascending: true });
+          if (subData) {
+            subData.forEach((s) => {
+              if (!taskSubtasks[s.task_id]) taskSubtasks[s.task_id] = [];
+              taskSubtasks[s.task_id].push({
+                id: s.id,
+                taskId: s.task_id,
+                title: s.title,
+                completed: s.completed,
+                position: s.position,
+                createdAt: s.created_at,
+                updatedAt: s.updated_at,
+              });
+            });
+          }
+        } catch {
+          // ignore subtasks query failure
+        }
+      }
 
       const tasks: Task[] = (data || []).map((row) => ({
         id: row.id,
@@ -114,6 +143,7 @@ export const taskService = {
         recurrenceId: row.recurrence_id,
         isStarred: Boolean(starredMap[row.id]),
         deadline: deadlineMap[row.id] || null,
+        subtasks: taskSubtasks[row.id] || [],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
@@ -125,17 +155,19 @@ export const taskService = {
       return tasks;
     }
 
+    const allSubtasks = getStored<Subtask[]>(STORAGE_SUBTASKS_KEY, INITIAL_DEMO_SUBTASKS);
     const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS).map((t) => ({
       ...t,
       isStarred: Boolean(starredMap[t.id] ?? t.isStarred),
       deadline: deadlineMap[t.id] || t.deadline || null,
+      subtasks: allSubtasks.filter((s) => s.taskId === t.id),
     }));
 
     if (isStarredList) {
       return tasks.filter((t) => t.isStarred);
     }
 
-    if (listId) {
+    if (listId && listId !== 'all') {
       return tasks.filter((t) => t.listId === listId);
     }
     return tasks;
@@ -521,10 +553,7 @@ export const taskService = {
    */
   async completeTask(id: string, completed: boolean): Promise<Task> {
     const task = await this.getTask(id);
-    if (!task) throw new Error('Task not found');
-
-    // If uncompleting, or non-recurring, perform standard toggle
-    if (!completed || !task.isRecurring || !task.recurrenceId) {
+    if (!task || !completed || !task.isRecurring || !task.recurrenceId) {
       return this.updateTask(id, { completed });
     }
 

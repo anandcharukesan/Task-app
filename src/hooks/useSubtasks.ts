@@ -9,6 +9,7 @@ export function useSubtasks(taskId?: string | null) {
   const createSubtaskMutation = useMutation({
     mutationFn: (input: CreateSubtaskInput) => taskService.createSubtask(input),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       if (taskId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.subtasks(taskId) });
       }
@@ -19,6 +20,7 @@ export function useSubtasks(taskId?: string | null) {
     mutationFn: ({ id, input }: { id: string; input: UpdateSubtaskInput }) =>
       taskService.updateSubtask(id, input),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       if (taskId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.subtasks(taskId) });
       }
@@ -28,6 +30,7 @@ export function useSubtasks(taskId?: string | null) {
   const deleteSubtaskMutation = useMutation({
     mutationFn: (id: string) => taskService.deleteSubtask(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       if (taskId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.subtasks(taskId) });
       }

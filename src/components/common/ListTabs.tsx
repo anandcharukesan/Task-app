@@ -77,7 +77,7 @@ export const ListTabs: React.FC<ListTabsProps> = ({
             >
               <div className="flex items-center gap-1.5 px-1">
                 <span
-                  className={`text-sm tracking-tight transition-colors ${
+                  className={`text-[15px] tracking-normal transition-colors ${
                     isActive
                       ? 'font-medium text-[#1F1F1F] dark:text-[#E3E3E3]'
                       : 'text-[#444746] dark:text-[#C4C7C5] group-hover:text-[#1F1F1F] dark:group-hover:text-white'
@@ -99,7 +99,7 @@ export const ListTabs: React.FC<ListTabsProps> = ({
               </div>
               {/* Active Bottom Indicator */}
               {isActive && (
-                <div className="absolute -bottom-1 w-full max-w-[28px] h-[3px] bg-[#1F1F1F] dark:bg-white rounded-full" />
+                <div className="absolute -bottom-1 w-full max-w-[32px] h-[3px] bg-[#1F1F1F] dark:bg-white rounded-full" />
               )}
             </button>
           );
@@ -109,7 +109,7 @@ export const ListTabs: React.FC<ListTabsProps> = ({
         <button
           type="button"
           onClick={onOpenCreateList}
-          className="flex items-center gap-1.5 pt-2 pb-1 text-sm font-medium text-[#444746] dark:text-[#C4C7C5] hover:text-[#1F1F1F] dark:hover:text-white cursor-pointer transition-colors focus:outline-none"
+          className="flex items-center gap-1.5 pt-2 pb-1 text-[15px] font-medium text-[#444746] dark:text-[#C4C7C5] hover:text-[#1F1F1F] dark:hover:text-white cursor-pointer transition-colors focus:outline-none"
         >
           <Plus size={16} />
           <span>New list</span>

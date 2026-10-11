@@ -73,10 +73,10 @@ export const TaskList: React.FC<TaskListProps> = ({
   return (
     <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full px-3 sm:px-4 pb-24">
       {/* Google Tasks White Card Container */}
-      <div className="bg-white dark:bg-[#1E1F20] rounded-3xl p-4 sm:p-5 shadow-xs flex-1 flex flex-col min-h-[460px]">
+      <div className="bg-white dark:bg-[#1E1F20] rounded-[22px] p-4 sm:p-5 shadow-xs flex-1 flex flex-col min-h-[460px]">
         {/* Card Header: List Name on Left, Sort & 3-Dots on Right */}
         <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-base font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
+          <h2 className="text-[19px] font-medium text-[#1F1F1F] dark:text-[#E3E3E3]">
             {isStarredList ? 'Starred' : listName}
           </h2>
 

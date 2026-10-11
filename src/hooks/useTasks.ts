@@ -42,12 +42,12 @@ export function useTasks(userId: string, listId?: string) {
     mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
       taskService.completeTask(id, completed),
     onMutate: async ({ id, completed }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(listId) });
-      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(listId));
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(userId, listId) });
+      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(userId, listId));
 
       if (previousTasks) {
         queryClient.setQueryData<Task[]>(
-          queryKeys.tasks(listId),
+          queryKeys.tasks(userId, listId),
           previousTasks.map((t) => (t.id === id ? { ...t, completed } : t))
         );
       }
@@ -55,20 +55,18 @@ export function useTasks(userId: string, listId?: string) {
     },
     onError: (_err, _vars, context) => {
       if (context?.previousTasks) {
-        queryClient.setQueryData(queryKeys.tasks(listId), context.previousTasks);
+        queryClient.setQueryData(queryKeys.tasks(userId, listId), context.previousTasks);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(listId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
   const skipOccurrenceMutation = useMutation({
     mutationFn: (id: string) => taskService.skipOccurrence(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(listId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
@@ -76,11 +74,11 @@ export function useTasks(userId: string, listId?: string) {
     mutationFn: ({ id, isStarred }: { id: string; isStarred: boolean }) =>
       taskService.toggleStar(id, isStarred),
     onMutate: async ({ id, isStarred }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(listId) });
-      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(listId));
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(userId, listId) });
+      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(userId, listId));
       if (previousTasks) {
         queryClient.setQueryData<Task[]>(
-          queryKeys.tasks(listId),
+          queryKeys.tasks(userId, listId),
           previousTasks.map((t) => (t.id === id ? { ...t, isStarred } : t))
         );
       }
@@ -88,20 +86,18 @@ export function useTasks(userId: string, listId?: string) {
     },
     onError: (_err, _vars, context) => {
       if (context?.previousTasks) {
-        queryClient.setQueryData(queryKeys.tasks(listId), context.previousTasks);
+        queryClient.setQueryData(queryKeys.tasks(userId, listId), context.previousTasks);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(listId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
   const deleteCompletedMutation = useMutation({
     mutationFn: () => taskService.deleteCompletedTasks(userId, listId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(listId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 

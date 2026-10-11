@@ -2,11 +2,11 @@ import React from 'react';
 
 export const EmptyStarred: React.FC = () => {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
+    <div className="flex flex-col items-center justify-center py-6 px-4 text-center select-none">
       {/* Google Tasks Girl with Star SVG Illustration */}
       <svg
         viewBox="0 0 240 240"
-        className="w-48 h-48 sm:w-56 sm:h-56 mb-4"
+        className="w-36 h-36 sm:w-40 sm:h-40 mb-3"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
