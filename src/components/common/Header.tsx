@@ -15,16 +15,16 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="pt-2 pb-1 px-4 sm:px-6 flex items-center justify-between bg-[#F0F4F9] dark:bg-[#131314] shrink-0 z-20">
-      {/* Left empty balancing spacer (no hamburger) */}
-      <div className="w-9" />
+      {/* Left empty balancing spacer */}
+      <div className={profile ? 'w-8' : 'w-16'} />
 
       {/* Centered App Title: Tasks */}
       <h1 className="text-[22px] font-normal text-[#1F1F1F] dark:text-[#E3E3E3] tracking-normal text-center font-sans">
         Tasks
       </h1>
 
-      {/* Right User Avatar */}
-      <div className="flex items-center justify-end w-9">
+      {/* Right User Avatar or Sign in button */}
+      <div className={`flex items-center justify-end ${profile ? 'w-8' : 'w-16'}`}>
         {profile ? (
           <button
             type="button"
@@ -52,11 +52,11 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenAuth || onOpenSettings}
-            className="w-8 h-8 rounded-full bg-[#E1E3E1] dark:bg-[#2F3033] hover:bg-[#D3D6D4] text-[#444746] dark:text-[#C4C7C5] flex items-center justify-center cursor-pointer transition-colors"
+            className="px-3 py-1 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] dark:bg-[#A8C7FA] dark:text-[#062E6F] text-white text-xs font-medium cursor-pointer transition-colors shadow-xs active:scale-95"
             title="Sign in"
             aria-label="Sign In"
           >
-            <User size={18} />
+            Sign in
           </button>
         )}
       </div>

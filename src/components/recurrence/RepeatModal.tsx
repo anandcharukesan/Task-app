@@ -13,6 +13,7 @@ interface RepeatModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialRule?: RecurrenceRule | null;
+  currentRule?: RecurrenceRule | null;
   initialDueDate?: string | null;
   initialDueTime?: string | null;
   onSave: (rule: Omit<RecurrenceRule, 'taskId'>) => void;
@@ -32,12 +33,14 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
   isOpen,
   onClose,
   initialRule,
+  currentRule,
   initialDueDate,
   initialDueTime,
   onSave,
   onRemove,
 }) => {
   const today = getTodayDateString();
+  const effectiveRule = initialRule || currentRule || null;
 
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('week');
   const [interval, setInterval] = useState<number>(1);
@@ -53,19 +56,19 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
   const [occurrenceLimit, setOccurrenceLimit] = useState<number>(5);
 
   useEffect(() => {
-    if (initialRule) {
-      setFrequency(initialRule.frequency || 'week');
-      setInterval(initialRule.interval || 1);
-      setWeekdays(initialRule.weekdays && initialRule.weekdays.length > 0 ? initialRule.weekdays : [new Date().getDay()]);
-      setMonthlyMode(initialRule.monthlyMode || 'day_of_month');
-      setDayOfMonth(initialRule.dayOfMonth || new Date().getDate());
-      setWeekPosition(initialRule.weekPosition || 'first');
-      setWeekday(initialRule.weekday !== undefined ? initialRule.weekday : new Date().getDay());
-      setTime(initialRule.time || initialDueTime || '');
-      setStartDate(initialRule.startDate || initialDueDate || today);
-      setEndType(initialRule.endType || 'never');
-      setEndDate(initialRule.endDate || '');
-      setOccurrenceLimit(initialRule.occurrenceLimit || 5);
+    if (effectiveRule) {
+      setFrequency(effectiveRule.frequency || 'week');
+      setInterval(effectiveRule.interval || 1);
+      setWeekdays(effectiveRule.weekdays && effectiveRule.weekdays.length > 0 ? effectiveRule.weekdays : [new Date().getDay()]);
+      setMonthlyMode(effectiveRule.monthlyMode || 'day_of_month');
+      setDayOfMonth(effectiveRule.dayOfMonth || new Date().getDate());
+      setWeekPosition(effectiveRule.weekPosition || 'first');
+      setWeekday(effectiveRule.weekday !== undefined ? effectiveRule.weekday : new Date().getDay());
+      setTime(effectiveRule.time || initialDueTime || '');
+      setStartDate(effectiveRule.startDate || initialDueDate || today);
+      setEndType(effectiveRule.endType || 'never');
+      setEndDate(effectiveRule.endDate || '');
+      setOccurrenceLimit(effectiveRule.occurrenceLimit || 5);
     } else {
       setFrequency('week');
       setInterval(1);
@@ -87,7 +90,7 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
       setEndDate('');
       setOccurrenceLimit(5);
     }
-  }, [initialRule, initialDueDate, initialDueTime, isOpen, today]);
+  }, [effectiveRule, initialDueDate, initialDueTime, isOpen, today]);
 
   const currentRulePreview: RecurrenceRule = {
     taskId: '',
@@ -126,46 +129,41 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Repeats" maxWidth="md">
-      <div className="flex flex-col gap-6 text-[#202124] dark:text-[#E8EAED]">
-        {/* Every Section */}
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-[#5F6368] dark:text-[#9AA0A6] mb-2 block">
-            Every
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="number"
-              min="1"
-              max="99"
-              value={interval}
-              onChange={(e) => setInterval(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-20 px-3 py-2 text-center text-sm font-medium bg-white dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] dark:focus:border-[#8AB4F8]"
+    <Modal isOpen={isOpen} onClose={onClose} title="Repeats every" maxWidth="sm">
+      <div className="flex flex-col gap-4 text-[#1F1F1F] dark:text-[#E3E3E3] pt-1">
+        {/* Row 1: Interval input & Frequency dropdown */}
+        <div className="flex items-center gap-2.5">
+          <input
+            type="number"
+            min="1"
+            max="99"
+            value={interval}
+            onChange={(e) => setInterval(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className="w-16 px-2 py-2 text-center text-sm font-medium bg-[#F1F3F4] dark:bg-[#1E1F20] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:outline-none focus:border-[#1A73E8] dark:focus:border-[#8AB4F8]"
+          />
+          <div className="relative flex-1">
+            <select
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
+              className="w-full appearance-none px-3.5 py-2 pr-9 text-sm bg-[#F1F3F4] dark:bg-[#1E1F20] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:outline-none focus:border-[#1A73E8] dark:focus:border-[#8AB4F8] cursor-pointer"
+            >
+              {FREQUENCIES.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {interval === 1 ? f.label : `${f.label}s`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={16}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5F6368] dark:text-[#9AA0A6] pointer-events-none"
             />
-            <div className="relative flex-1">
-              <select
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
-                className="w-full appearance-none px-3.5 py-2 pr-9 text-sm bg-white dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] dark:focus:border-[#8AB4F8] capitalize cursor-pointer"
-              >
-                {FREQUENCIES.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {interval === 1 ? f.label : `${f.label}s`}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5F6368] dark:text-[#9AA0A6] pointer-events-none"
-              />
-            </div>
           </div>
         </div>
 
         {/* Weekly Day Selector */}
         {frequency === 'week' && (
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#5F6368] dark:text-[#9AA0A6] mb-1 block">
+            <label className="text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] mb-1.5 block">
               Repeats on
             </label>
             <WeekdaySelector selectedDays={weekdays} onChange={setWeekdays} />
@@ -175,7 +173,7 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
         {/* Monthly Pattern Selector */}
         {frequency === 'month' && (
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#5F6368] dark:text-[#9AA0A6] mb-1 block">
+            <label className="text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] mb-1.5 block">
               Monthly pattern
             </label>
             <MonthlyRulePicker
@@ -191,95 +189,76 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
           </div>
         )}
 
-        {/* Set Time (Optional) */}
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-[#5F6368] dark:text-[#9AA0A6] mb-2 flex items-center gap-1.5">
-            <Clock size={14} />
-            Set time (optional)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="px-3 py-2 text-sm bg-white dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] dark:focus:border-[#8AB4F8]"
-            />
-            {time && (
-              <button
-                type="button"
-                onClick={() => setTime('')}
-                className="text-xs text-[#5F6368] hover:text-[#D93025] dark:text-[#9AA0A6] underline px-2 py-1"
-              >
-                Clear time
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Starts */}
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-[#5F6368] dark:text-[#9AA0A6] mb-2 flex items-center gap-1.5">
-            <Calendar size={14} />
-            Starts
-          </label>
+        {/* Set Time Box */}
+        <div className="flex items-center gap-2">
           <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-3.5 py-2 text-sm bg-white dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] dark:focus:border-[#8AB4F8]"
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className="w-full px-3.5 py-2 text-sm bg-[#F1F3F4] dark:bg-[#1E1F20] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:outline-none focus:border-[#1A73E8] dark:focus:border-[#8AB4F8]"
+            placeholder="Set time"
           />
+          {time && (
+            <button
+              type="button"
+              onClick={() => setTime('')}
+              className="text-xs text-[#5F6368] hover:text-[#D93025] dark:text-[#9AA0A6] px-2 py-1 shrink-0"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
-        {/* Ends */}
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-[#5F6368] dark:text-[#9AA0A6] mb-3 block">
+        {/* Ends Section */}
+        <div className="pt-1">
+          <label className="text-sm font-medium text-[#1F1F1F] dark:text-[#E3E3E3] mb-3 block">
             Ends
           </label>
           <div className="flex flex-col gap-3">
             {/* Never */}
-            <label className="flex items-center gap-3 cursor-pointer">
+            <label className="flex items-center gap-3 cursor-pointer select-none">
               <input
                 type="radio"
                 name="end-condition"
                 checked={endType === 'never'}
                 onChange={() => setEndType('never')}
-                className="w-4 h-4 text-[#1A73E8] focus:ring-[#1A73E8] cursor-pointer"
+                className="w-4 h-4 text-[#1A73E8] focus:ring-0 cursor-pointer"
               />
-              <span className="text-sm font-medium">Never</span>
+              <span className="text-sm font-normal">Never</span>
             </label>
 
-            {/* On date */}
+            {/* On */}
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-3 cursor-pointer shrink-0">
+              <label className="flex items-center gap-3 cursor-pointer shrink-0 select-none">
                 <input
                   type="radio"
                   name="end-condition"
                   checked={endType === 'on'}
                   onChange={() => setEndType('on')}
-                  className="w-4 h-4 text-[#1A73E8] focus:ring-[#1A73E8] cursor-pointer"
+                  className="w-4 h-4 text-[#1A73E8] focus:ring-0 cursor-pointer"
                 />
-                <span className="text-sm font-medium">On</span>
+                <span className="text-sm font-normal">On</span>
               </label>
               <input
                 type="date"
                 value={endDate}
                 disabled={endType !== 'on'}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-1.5 text-sm bg-white dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] disabled:opacity-40"
+                className="px-3 py-1.5 text-sm bg-[#F1F3F4] dark:bg-[#1E1F20] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:outline-none focus:border-[#1A73E8] disabled:opacity-40"
               />
             </div>
 
-            {/* After occurrences */}
+            {/* After */}
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-3 cursor-pointer shrink-0">
+              <label className="flex items-center gap-3 cursor-pointer shrink-0 select-none">
                 <input
                   type="radio"
                   name="end-condition"
                   checked={endType === 'after'}
                   onChange={() => setEndType('after')}
-                  className="w-4 h-4 text-[#1A73E8] focus:ring-[#1A73E8] cursor-pointer"
+                  className="w-4 h-4 text-[#1A73E8] focus:ring-0 cursor-pointer"
                 />
-                <span className="text-sm font-medium">After</span>
+                <span className="text-sm font-normal">After</span>
               </label>
               <input
                 type="number"
@@ -288,46 +267,29 @@ export const RepeatModal: React.FC<RepeatModalProps> = ({
                 value={occurrenceLimit}
                 disabled={endType !== 'after'}
                 onChange={(e) => setOccurrenceLimit(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                className="w-18 px-2.5 py-1 text-center text-sm bg-white dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] disabled:opacity-40"
+                className="w-16 px-2 py-1 text-center text-sm bg-[#F1F3F4] dark:bg-[#1E1F20] border border-[#DADCE0] dark:border-[#3C4043] rounded-lg focus:outline-none focus:border-[#1A73E8] disabled:opacity-40"
               />
-              <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">occurrences</span>
+              <span className="text-sm text-[#444746] dark:text-[#C4C7C5]">occurrences</span>
             </div>
           </div>
         </div>
 
-        {/* Live Summary Text */}
-        <div className="p-3 rounded-lg bg-[#F8F9FA] dark:bg-[#202124] border border-[#DADCE0] dark:border-[#3C4043] text-xs text-[#5F6368] dark:text-[#9AA0A6]">
-          <span className="font-semibold text-[#202124] dark:text-[#E8EAED]">Summary: </span>
-          {formatRecurrenceRule(currentRulePreview)}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-[#DADCE0] dark:border-[#3C4043]">
-          {initialRule && onRemove ? (
-            <Button
-              variant="text"
-              size="sm"
-              icon={<Trash2 size={16} />}
-              onClick={() => {
-                onRemove();
-                onClose();
-              }}
-              className="text-[#D93025] dark:text-[#F28B82] hover:bg-[#FCE8E6] dark:hover:bg-[#5C2B29]"
-            >
-              Remove
-            </Button>
-          ) : (
-            <div />
-          )}
-
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleDone}>
-              Done
-            </Button>
-          </div>
+        {/* Actions matching screenshot: Cancel & Done pill */}
+        <div className="flex items-center justify-end gap-2 pt-4 mt-2 border-t border-[#F1F3F4] dark:border-[#3C4043]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-full text-sm font-medium text-[#1A73E8] dark:text-[#A8C7FA] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043]/50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDone}
+            className="px-6 py-2 rounded-full text-sm font-medium bg-[#0B57D0] hover:bg-[#0842A0] dark:bg-[#A8C7FA] dark:hover:bg-[#8AB4F8] text-white dark:text-[#062E6F] transition-all cursor-pointer shadow-xs active:scale-95"
+          >
+            Done
+          </button>
         </div>
       </div>
     </Modal>

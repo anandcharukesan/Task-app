@@ -24,6 +24,47 @@ export function useTasks(userId: string, listId?: string) {
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateTaskInput }) =>
       taskService.updateTask(id, input),
+    onMutate: async ({ id, input }) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.tasks(userId, listId));
+      if (previousTasks) {
+        queryClient.setQueryData<Task[]>(
+          queryKeys.tasks(userId, listId),
+          previousTasks.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  ...input,
+                  isRecurring:
+                    input.isRecurring !== undefined
+                      ? input.isRecurring
+                      : input.recurrence === null
+                      ? false
+                      : Boolean(input.recurrence ?? t.isRecurring),
+                  recurrence:
+                    input.recurrence === null
+                      ? null
+                      : input.recurrence
+                      ? (input.recurrence as any)
+                      : input.isRecurring === false
+                      ? null
+                      : t.recurrence,
+                  recurrenceId:
+                    input.isRecurring === false || input.recurrence === null
+                      ? null
+                      : t.recurrenceId,
+                }
+              : t
+          )
+        );
+      }
+      return { previousTasks };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(queryKeys.tasks(userId, listId), context.previousTasks);
+      }
+    },
     onSuccess: (updatedTask) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.task(updatedTask.id) });
@@ -101,6 +142,14 @@ export function useTasks(userId: string, listId?: string) {
     },
   });
 
+  const reorderTasksMutation = useMutation({
+    mutationFn: (reordered: { id: string; position: number }[]) =>
+      taskService.reorderTasks(reordered),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
   return {
     tasks: tasksQuery.data || [],
     isLoading: tasksQuery.isLoading,
@@ -118,5 +167,6 @@ export function useTasks(userId: string, listId?: string) {
       toggleStarMutation.mutateAsync({ id, isStarred }),
     deleteCompletedTasks: deleteCompletedMutation.mutateAsync,
     skipOccurrence: (id: string) => skipOccurrenceMutation.mutateAsync(id),
+    reorderTasks: reorderTasksMutation.mutateAsync,
   };
 }

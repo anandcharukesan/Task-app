@@ -7,11 +7,20 @@ const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export function formatRecurrenceRule(rule?: RecurrenceRule | null): string {
   if (!rule) return 'Does not repeat';
 
-  const { frequency, interval, weekdays, monthlyMode, dayOfMonth, weekPosition, weekday, endType, endDate, occurrenceLimit } = rule;
+  const freq = (rule.frequency || 'day').toLowerCase();
+  const interval = rule.interval || 1;
+  const weekdays = rule.weekdays;
+  const monthlyMode = rule.monthlyMode;
+  const dayOfMonth = rule.dayOfMonth;
+  const weekPosition = rule.weekPosition;
+  const weekday = rule.weekday;
+  const endType = rule.endType;
+  const endDate = rule.endDate;
+  const occurrenceLimit = rule.occurrenceLimit;
   const isSingular = interval === 1;
 
   let freqStr = '';
-  switch (frequency) {
+  switch (freq) {
     case 'minute':
       freqStr = isSingular ? 'minute' : `${interval} minutes`;
       break;
@@ -19,31 +28,38 @@ export function formatRecurrenceRule(rule?: RecurrenceRule | null): string {
       freqStr = isSingular ? 'hour' : `${interval} hours`;
       break;
     case 'day':
+    case 'daily':
       freqStr = isSingular ? 'day' : `${interval} days`;
       break;
     case 'week':
+    case 'weekly':
       freqStr = isSingular ? 'week' : `${interval} weeks`;
       break;
     case 'month':
+    case 'monthly':
       freqStr = isSingular ? 'month' : `${interval} months`;
       break;
     case 'year':
+    case 'yearly':
+    case 'annually':
       freqStr = isSingular ? 'year' : `${interval} years`;
       break;
+    default:
+      freqStr = `${interval} ${freq}`;
   }
 
-  let base = isSingular && frequency === 'day' ? 'Daily' :
-             isSingular && frequency === 'week' && (!weekdays || weekdays.length === 1) ? 'Weekly' :
-             isSingular && frequency === 'month' ? 'Monthly' :
-             isSingular && frequency === 'year' ? 'Annually' :
+  let base = isSingular && (freq === 'day' || freq === 'daily') ? 'Daily' :
+             isSingular && (freq === 'week' || freq === 'weekly') && (!weekdays || weekdays.length <= 1) ? 'Weekly' :
+             isSingular && (freq === 'month' || freq === 'monthly') ? 'Monthly' :
+             isSingular && (freq === 'year' || freq === 'yearly' || freq === 'annually') ? 'Annually' :
              `Every ${freqStr}`;
 
-  if (frequency === 'week' && weekdays && weekdays.length > 0) {
+  if ((freq === 'week' || freq === 'weekly') && weekdays && weekdays.length > 0) {
     const days = [...weekdays].sort().map((d) => WEEKDAY_SHORT[d]).join(', ');
     base = isSingular ? `Weekly on ${days}` : `Every ${interval} weeks on ${days}`;
   }
 
-  if (frequency === 'month') {
+  if (freq === 'month' || freq === 'monthly') {
     if (monthlyMode === 'weekday_position' && weekPosition && weekday !== undefined) {
       base = `${base} on the ${weekPosition} ${WEEKDAY_NAMES[weekday]}`;
     } else if (dayOfMonth) {

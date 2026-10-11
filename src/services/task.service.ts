@@ -4,6 +4,7 @@ import { RecurrenceRule, TaskOccurrence } from '../types/recurrence';
 import { getNextOccurrence, isRecurrenceEnded } from '../lib/recurrence/recurrenceEngine';
 import { getTodayDateString, getTomorrowDateString } from '../lib/date/dateUtils';
 import { addDays, format } from 'date-fns';
+import { recurrenceService } from './recurrence.service';
 
 const STORAGE_TASKS_KEY = 'cleartasks_tasks_v1';
 const STORAGE_SUBTASKS_KEY = 'cleartasks_subtasks_v1';
@@ -101,6 +102,7 @@ export const taskService = {
       if (error) throw error;
 
       let taskSubtasks: Record<string, Subtask[]> = {};
+      let taskRecurrences: Record<string, RecurrenceRule> = {};
       const taskIds = (data || []).map((r) => r.id);
       if (taskIds.length > 0) {
         try {
@@ -127,26 +129,65 @@ export const taskService = {
         } catch {
           // ignore subtasks query failure
         }
+
+        try {
+          const { data: recData } = await supabase
+            .from('task_recurrences')
+            .select('*')
+            .in('task_id', taskIds);
+          if (recData) {
+            recData.forEach((r) => {
+              taskRecurrences[r.task_id] = {
+                id: r.id,
+                taskId: r.task_id,
+                frequency: r.frequency,
+                interval: r.interval,
+                weekdays: r.weekdays,
+                monthlyMode: r.monthly_mode,
+                dayOfMonth: r.day_of_month,
+                weekPosition: r.week_position,
+                weekday: r.weekday,
+                time: r.time,
+                startDate: r.start_date,
+                endType: r.end_type,
+                endDate: r.end_date,
+                occurrenceLimit: r.occurrence_limit,
+                timezone: r.timezone,
+                createdAt: r.created_at,
+                updatedAt: r.updated_at,
+              };
+            });
+          }
+        } catch {
+          // ignore recurrences query failure
+        }
       }
 
-      const tasks: Task[] = (data || []).map((row) => ({
-        id: row.id,
-        userId: row.user_id,
-        listId: row.list_id,
-        title: row.title,
-        notes: row.notes,
-        completed: row.completed,
-        position: row.position,
-        dueDate: row.due_date,
-        dueTime: row.due_time,
-        isRecurring: row.is_recurring,
-        recurrenceId: row.recurrence_id,
-        isStarred: Boolean(starredMap[row.id]),
-        deadline: deadlineMap[row.id] || null,
-        subtasks: taskSubtasks[row.id] || [],
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      const localRecurrences = getStored<RecurrenceRule[]>(STORAGE_RECURRENCES_KEY, []);
+      const tasks: Task[] = (data || []).map((row) => {
+        const rec = row.is_recurring
+          ? taskRecurrences[row.id] || localRecurrences.find((r) => r.taskId === row.id) || null
+          : null;
+        return {
+          id: row.id,
+          userId: row.user_id,
+          listId: row.list_id,
+          title: row.title,
+          notes: row.notes,
+          completed: row.completed,
+          position: row.position,
+          dueDate: row.due_date,
+          dueTime: row.due_time,
+          isRecurring: Boolean(row.is_recurring && rec),
+          recurrenceId: row.recurrence_id || rec?.id || null,
+          recurrence: rec,
+          isStarred: Boolean(starredMap[row.id]),
+          deadline: deadlineMap[row.id] || null,
+          subtasks: taskSubtasks[row.id] || [],
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      });
 
       if (isStarredList) {
         return tasks.filter((t) => t.isStarred);
@@ -156,12 +197,21 @@ export const taskService = {
     }
 
     const allSubtasks = getStored<Subtask[]>(STORAGE_SUBTASKS_KEY, INITIAL_DEMO_SUBTASKS);
-    const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS).map((t) => ({
-      ...t,
-      isStarred: Boolean(starredMap[t.id] ?? t.isStarred),
-      deadline: deadlineMap[t.id] || t.deadline || null,
-      subtasks: allSubtasks.filter((s) => s.taskId === t.id),
-    }));
+    const recurrences = getStored<RecurrenceRule[]>(STORAGE_RECURRENCES_KEY, INITIAL_DEMO_RECURRENCES);
+    const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS).map((t) => {
+      const rec = t.isRecurring
+        ? t.recurrence || recurrences.find((r) => r.taskId === t.id || (t.recurrenceId && r.id === t.recurrenceId)) || null
+        : null;
+      return {
+        ...t,
+        isRecurring: Boolean(t.isRecurring && rec),
+        recurrence: rec,
+        recurrenceId: rec ? rec.id : null,
+        isStarred: Boolean(starredMap[t.id] ?? t.isStarred),
+        deadline: deadlineMap[t.id] || t.deadline || null,
+        subtasks: allSubtasks.filter((s) => s.taskId === t.id),
+      };
+    });
 
     if (isStarredList) {
       return tasks.filter((t) => t.isStarred);
@@ -464,6 +514,14 @@ export const taskService = {
       setStarredMap(sMap);
     }
 
+    let updatedRecurrence: RecurrenceRule | null | undefined = undefined;
+    if (input.recurrence) {
+      updatedRecurrence = await recurrenceService.saveRecurrence(id, input.recurrence);
+    } else if (input.isRecurring === false || input.recurrence === null) {
+      await recurrenceService.deleteRecurrence(id);
+      updatedRecurrence = null;
+    }
+
     if (isSupabaseConfigured() && supabase) {
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -475,8 +533,12 @@ export const taskService = {
       if (input.dueDate !== undefined) updatePayload.due_date = input.dueDate;
       if (input.dueTime !== undefined) updatePayload.due_time = input.dueTime;
       if (input.listId !== undefined) updatePayload.list_id = input.listId;
-      if (input.isRecurring !== undefined) updatePayload.is_recurring = input.isRecurring;
-      if (input.recurrenceId !== undefined) updatePayload.recurrence_id = input.recurrenceId;
+      if (input.isRecurring !== undefined || updatedRecurrence !== undefined) {
+        updatePayload.is_recurring = updatedRecurrence ? true : (input.isRecurring ?? false);
+      }
+      if (input.recurrenceId !== undefined || updatedRecurrence !== undefined) {
+        updatePayload.recurrence_id = updatedRecurrence ? updatedRecurrence.id : null;
+      }
 
       const { data, error } = await supabase
         .from('tasks')
@@ -502,6 +564,7 @@ export const taskService = {
         dueTime: data.due_time,
         isRecurring: data.is_recurring,
         recurrenceId: data.recurrence_id,
+        recurrence: updatedRecurrence !== undefined ? updatedRecurrence : undefined,
         isStarred: Boolean(getStarredMap()[data.id]),
         deadline: getDeadlineMap()[data.id] || null,
         createdAt: data.created_at,
@@ -513,6 +576,35 @@ export const taskService = {
     const index = tasks.findIndex((t) => t.id === id);
     if (index === -1) throw new Error('Task not found');
 
+    let recId = tasks[index].recurrenceId || null;
+    let finalRec = tasks[index].recurrence || null;
+    const recurrences = getStored<RecurrenceRule[]>(STORAGE_RECURRENCES_KEY, INITIAL_DEMO_RECURRENCES);
+
+    if (input.isRecurring === false || input.recurrence === null) {
+      setStored(
+        STORAGE_RECURRENCES_KEY,
+        recurrences.filter((r) => r.taskId !== id && (!recId || r.id !== recId))
+      );
+      recId = null;
+      finalRec = null;
+    } else if (input.recurrence) {
+      const recIdx = recurrences.findIndex((r) => r.taskId === id || (recId && r.id === recId));
+      recId = recIdx >= 0 ? recurrences[recIdx].id || `rec-${Date.now()}` : `rec-${Date.now()}`;
+      finalRec = updatedRecurrence || {
+        ...input.recurrence,
+        id: recId,
+        taskId: id,
+        createdAt: recIdx >= 0 ? recurrences[recIdx].createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (recIdx >= 0) {
+        recurrences[recIdx] = finalRec;
+      } else {
+        recurrences.push(finalRec);
+      }
+      setStored(STORAGE_RECURRENCES_KEY, recurrences);
+    }
+
     const updated: Task = {
       ...tasks[index],
       ...(input.title !== undefined && { title: input.title }),
@@ -522,10 +614,11 @@ export const taskService = {
       ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
       ...(input.dueTime !== undefined && { dueTime: input.dueTime }),
       ...(input.listId !== undefined && { listId: input.listId }),
-      ...(input.isRecurring !== undefined && { isRecurring: input.isRecurring }),
-      ...(input.recurrenceId !== undefined && { recurrenceId: input.recurrenceId }),
       ...(input.deadline !== undefined && { deadline: input.deadline }),
       ...(input.isStarred !== undefined && { isStarred: input.isStarred }),
+      recurrence: updatedRecurrence !== undefined ? updatedRecurrence : finalRec,
+      recurrenceId: updatedRecurrence !== undefined ? (updatedRecurrence ? updatedRecurrence.id : null) : recId,
+      isRecurring: updatedRecurrence !== undefined ? Boolean(updatedRecurrence) : (input.isRecurring !== undefined ? input.isRecurring : Boolean(finalRec)),
       updatedAt: new Date().toISOString(),
     };
 
@@ -546,6 +639,30 @@ export const taskService = {
       STORAGE_TASKS_KEY,
       tasks.filter((t) => t.id !== id)
     );
+  },
+
+  async reorderTasks(reordered: { id: string; position: number }[]): Promise<void> {
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await Promise.all(
+          reordered.map((item) =>
+            supabase.from('tasks').update({ position: item.position }).eq('id', item.id)
+          )
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    const tasks = getStored<Task[]>(STORAGE_TASKS_KEY, INITIAL_DEMO_TASKS);
+    const posMap = new Map(reordered.map((r) => [r.id, r.position]));
+    const updated = tasks.map((t) => {
+      if (posMap.has(t.id)) {
+        return { ...t, position: posMap.get(t.id)! };
+      }
+      return t;
+    });
+    setStored(STORAGE_TASKS_KEY, updated);
   },
 
   /**

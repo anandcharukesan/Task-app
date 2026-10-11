@@ -161,6 +161,7 @@ function TasksApp() {
     toggleComplete,
     toggleStar,
     deleteCompletedTasks,
+    reorderTasks,
   } = useTasks(userId, selectedListId);
 
   // Selected task details query & mutations
@@ -292,6 +293,9 @@ function TasksApp() {
                 onUpdateTask={async (id, updates) => {
                   await updateTask({ id, input: updates });
                 }}
+                onReorderTasks={async (items) => {
+                  await reorderTasks(items);
+                }}
                 onCreateSubtask={async (taskId, title) => {
                   await createSubtask({ taskId, title });
                 }}
@@ -385,6 +389,15 @@ function TasksApp() {
                 onSelectTask={(id) => setSelectedTaskId(id)}
                 onToggleComplete={(id, checked) => toggleComplete(id, checked)}
                 onToggleStar={(id, starred) => toggleStar(id, starred)}
+                onUpdateTask={async (id, updates) => {
+                  await updateTask({ id, input: updates });
+                }}
+                onReorderTasks={async (items) => {
+                  await reorderTasks(items);
+                }}
+                onDeleteTask={async (id) => {
+                  await deleteTask(id);
+                }}
               />
             </div>
           </main>

@@ -9,6 +9,7 @@ import { WebEmptyIllustration } from './WebEmptyIllustration';
 import { EmptyStarred } from '../common/EmptyStarred';
 import { GoogleDatePickerModal } from '../common/GoogleDatePickerModal';
 import { RepeatModal } from '../recurrence/RepeatModal';
+import { formatRecurrenceRule } from '../../lib/recurrence/recurrenceUtils';
 import {
   MoreVertical,
   ChevronDown,
@@ -16,6 +17,8 @@ import {
   Check,
   Clock,
   ArrowLeftRight,
+  Repeat,
+  X,
 } from 'lucide-react';
 
 export interface InlineTaskData {
@@ -43,6 +46,7 @@ interface WebTaskCardProps {
   onToggleStar: (taskId: string, isStarred: boolean) => void;
   onDeleteTask?: (taskId: string) => void;
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
+  onReorderTasks?: (tasks: { id: string; position: number }[]) => Promise<void>;
   onCreateSubtask?: (taskId: string, title: string) => void;
   onToggleSubtaskComplete?: (subtaskId: string, completed: boolean) => void;
   onDeleteSubtask?: (subtaskId: string) => void;
@@ -70,6 +74,7 @@ export const WebTaskCard: React.FC<WebTaskCardProps> = ({
   onToggleStar,
   onDeleteTask,
   onUpdateTask,
+  onReorderTasks,
   onCreateSubtask,
   onToggleSubtaskComplete,
   onDeleteSubtask,
@@ -98,12 +103,19 @@ export const WebTaskCard: React.FC<WebTaskCardProps> = ({
   const [inlineDueTime, setInlineDueTime] = useState<string>('');
   const [inlineRecurrence, setInlineRecurrence] = useState<RecurrenceRule | null>(null);
 
+  // Drag and drop state
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null);
+
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
+  const [isInlineRepeatMenuOpen, setIsInlineRepeatMenuOpen] = useState(false);
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const inlineRepeatRef = useRef<HTMLDivElement>(null);
   const inlineTitleInputRef = useRef<HTMLInputElement>(null);
   const inlineFormRef = useRef<HTMLFormElement>(null);
 
@@ -129,6 +141,9 @@ export const WebTaskCard: React.FC<WebTaskCardProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsMenuOpen(false);
+      }
+      if (inlineRepeatRef.current && !inlineRepeatRef.current.contains(e.target as Node)) {
+        setIsInlineRepeatMenuOpen(false);
       }
 
       // If date picker modal or repeat modal is currently open, don't auto-save yet
@@ -229,6 +244,93 @@ export const WebTaskCard: React.FC<WebTaskCardProps> = ({
       setInlineRecurrence(null);
       inlineTitleInputRef.current?.focus();
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedTaskId(taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, taskId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedTaskId && draggedTaskId !== taskId) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const position = e.clientY < midY ? 'above' : 'below';
+      setDragOverTaskId(taskId);
+      setDropPosition(position);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+    setDropPosition(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault();
+    if (!draggedTaskId || draggedTaskId === targetTaskId || !onReorderTasks) {
+      handleDragEnd();
+      return;
+    }
+
+    const currentList = [...activeTasks];
+    const sourceIdx = currentList.findIndex((t) => t.id === draggedTaskId);
+    if (sourceIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+
+    const [removed] = currentList.splice(sourceIdx, 1);
+    const targetIdx = currentList.findIndex((t) => t.id === targetTaskId);
+    if (targetIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+
+    const insertIdx = dropPosition === 'above' ? targetIdx : targetIdx + 1;
+    currentList.splice(insertIdx, 0, removed);
+
+    const reorderedPayload = currentList.map((t, idx) => ({
+      id: t.id,
+      position: idx,
+    }));
+
+    handleDragEnd();
+    if (sortBy !== 'my_order') {
+      onChangeSort('my_order');
+    }
+    await onReorderTasks(reorderedPayload);
+  };
+
+  const handleContainerDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedTaskId || !onReorderTasks) {
+      handleDragEnd();
+      return;
+    }
+    const currentList = [...activeTasks];
+    const sourceIdx = currentList.findIndex((t) => t.id === draggedTaskId);
+    if (sourceIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+    const [removed] = currentList.splice(sourceIdx, 1);
+    currentList.push(removed);
+
+    const reorderedPayload = currentList.map((t, idx) => ({
+      id: t.id,
+      position: idx,
+    }));
+
+    handleDragEnd();
+    if (sortBy !== 'my_order') {
+      onChangeSort('my_order');
+    }
+    await onReorderTasks(reorderedPayload);
   };
 
   return (
@@ -418,19 +520,121 @@ export const WebTaskCard: React.FC<WebTaskCardProps> = ({
               </button>
             </div>
 
-            {/* Right Side: Repeat icon + Save / Done button */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsRepeatModalOpen(true)}
-                className={`p-1.5 rounded-full hover:bg-white/70 dark:hover:bg-[#3C4043] transition-colors cursor-pointer ${
-                  inlineRecurrence ? 'text-[#1A73E8]' : 'text-[#5F6368] dark:text-[#9AA0A6]'
-                }`}
-                title="Repeat rule"
-                aria-label="Repeat rule"
-              >
-                <ArrowLeftRight size={15} />
-              </button>
+            {/* Right Side: Repeat icon + Dropdown / Badge */}
+            <div className="relative flex items-center gap-2" ref={inlineRepeatRef}>
+              {inlineRecurrence ? (
+                <div className="flex items-center gap-1.5 bg-[#E8F0FE] dark:bg-[#1A3A60] border border-[#1A73E8] dark:border-[#8AB4F8] text-[#1A73E8] dark:text-[#8AB4F8] px-2.5 py-0.5 rounded-full text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setIsInlineRepeatMenuOpen((prev) => !prev)}
+                    className="flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Repeat size={12} />
+                    <span>{formatRecurrenceRule(inlineRecurrence)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInlineRecurrence(null)}
+                    className="p-0.5 hover:bg-[#1A73E8]/20 rounded-full cursor-pointer ml-0.5"
+                    title="Remove repeat"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsInlineRepeatMenuOpen((prev) => !prev)}
+                  className="p-1.5 rounded-full hover:bg-white/70 dark:hover:bg-[#3C4043] text-[#5F6368] dark:text-[#9AA0A6] transition-colors cursor-pointer"
+                  title="Repeat rule"
+                  aria-label="Repeat rule"
+                >
+                  <Repeat size={15} />
+                </button>
+              )}
+
+              {/* Quick Repeat Dropdown: Daily, Weekly, Monthly, Custom */}
+              {isInlineRepeatMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-[#282A2C] rounded-2xl shadow-xl border border-[#DADCE0] dark:border-[#3C4043] py-1.5 z-50 text-sm animate-in fade-in zoom-in-95">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curDate = inlineDueDate ? new Date(inlineDueDate) : new Date();
+                      setInlineRecurrence({
+                        frequency: 'day',
+                        interval: 1,
+                        startDate: inlineDueDate || todayStr,
+                        endType: 'never',
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                      });
+                      setIsInlineRepeatMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"
+                  >
+                    Daily
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curDate = inlineDueDate ? new Date(inlineDueDate) : new Date();
+                      setInlineRecurrence({
+                        frequency: 'week',
+                        interval: 1,
+                        weekdays: [curDate.getDay()],
+                        startDate: inlineDueDate || todayStr,
+                        endType: 'never',
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                      });
+                      setIsInlineRepeatMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curDate = inlineDueDate ? new Date(inlineDueDate) : new Date();
+                      setInlineRecurrence({
+                        frequency: 'month',
+                        interval: 1,
+                        monthlyMode: 'day_of_month',
+                        dayOfMonth: curDate.getDate(),
+                        startDate: inlineDueDate || todayStr,
+                        endType: 'never',
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                      });
+                      setIsInlineRepeatMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"
+                  >
+                    Monthly
+                  </button>
+                  <div className="my-1 border-t border-[#F1F3F4] dark:border-[#3C4043]" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsInlineRepeatMenuOpen(false);
+                      setIsRepeatModalOpen(true);
+                    }}
+                    className="w-full text-left px-4 py-2 text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"
+                  >
+                    Custom...
+                  </button>
+                  {inlineRecurrence && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInlineRecurrence(null);
+                        setIsInlineRepeatMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-[#D93025] hover:bg-[#FCE8E6] dark:hover:bg-[#3C1E1E] transition-colors cursor-pointer"
+                    >
+                      Does not repeat
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </form>
@@ -508,8 +712,28 @@ export const WebTaskCard: React.FC<WebTaskCardProps> = ({
                   if (onUpdateTask) onUpdateTask(taskId, { listId: targetListId });
                 }}
                 onOpenCreateList={onOpenCreateList}
+                isDraggable={true}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                dropIndicator={dragOverTaskId === task.id ? dropPosition : null}
               />
             ))}
+
+            {/* Drop at bottom drop zone when dragging */}
+            {draggedTaskId && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={handleContainerDrop}
+                className="py-3 my-1 border-2 border-dashed border-[#1A73E8]/40 dark:border-[#8AB4F8]/40 rounded-xl text-center text-xs text-[#1A73E8] dark:text-[#8AB4F8] select-none"
+              >
+                Drop here to move to bottom
+              </div>
+            )}
           </div>
 
           {/* 6. Completed Tasks Accordion */}

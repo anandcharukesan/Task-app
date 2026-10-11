@@ -237,7 +237,13 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setRecurrenceRule({ frequency: 'DAILY', interval: 1 });
+                        setRecurrenceRule({
+                          frequency: 'day',
+                          interval: 1,
+                          startDate: dueDate || format(new Date(), 'yyyy-MM-dd'),
+                          endType: 'never',
+                          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                        });
                         setShowRepeatDropdown(false);
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"
@@ -247,7 +253,15 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setRecurrenceRule({ frequency: 'WEEKLY', interval: 1 });
+                        const curDate = dueDate ? new Date(dueDate) : new Date();
+                        setRecurrenceRule({
+                          frequency: 'week',
+                          interval: 1,
+                          weekdays: [curDate.getDay()],
+                          startDate: dueDate || format(new Date(), 'yyyy-MM-dd'),
+                          endType: 'never',
+                          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                        });
                         setShowRepeatDropdown(false);
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"
@@ -257,7 +271,16 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setRecurrenceRule({ frequency: 'MONTHLY', interval: 1 });
+                        const curDate = dueDate ? new Date(dueDate) : new Date();
+                        setRecurrenceRule({
+                          frequency: 'month',
+                          interval: 1,
+                          monthlyMode: 'day_of_month',
+                          dayOfMonth: curDate.getDate(),
+                          startDate: dueDate || format(new Date(), 'yyyy-MM-dd'),
+                          endType: 'never',
+                          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                        });
                         setShowRepeatDropdown(false);
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F1F3F4] dark:hover:bg-[#3C4043] transition-colors cursor-pointer"

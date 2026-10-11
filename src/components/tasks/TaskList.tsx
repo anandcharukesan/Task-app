@@ -10,6 +10,7 @@ interface TaskListProps {
   listId: string;
   listName: string;
   tasks: Task[];
+  lists?: import('../../types/list').TaskList[];
   selectedTaskId: string | null;
   searchQuery: string;
   sortBy: TaskSortOption;
@@ -19,12 +20,16 @@ interface TaskListProps {
   onSelectTask: (taskId: string) => void;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onToggleStar: (taskId: string, isStarred: boolean) => void;
+  onDeleteTask?: (taskId: string) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
+  onReorderTasks?: (tasks: { id: string; position: number }[]) => Promise<void>;
 }
 
 export const TaskList: React.FC<TaskListProps> = ({
   listId,
   listName,
   tasks,
+  lists = [],
   selectedTaskId,
   searchQuery,
   sortBy,
@@ -34,9 +39,104 @@ export const TaskList: React.FC<TaskListProps> = ({
   onSelectTask,
   onToggleComplete,
   onToggleStar,
+  onDeleteTask,
+  onUpdateTask,
+  onReorderTasks,
 }) => {
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
   const isStarredList = listId === 'starred';
+
+  // Drag and drop state
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedTaskId(taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, taskId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedTaskId && draggedTaskId !== taskId) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const position = e.clientY < midY ? 'above' : 'below';
+      setDragOverTaskId(taskId);
+      setDropPosition(position);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+    setDropPosition(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault();
+    if (!draggedTaskId || draggedTaskId === targetTaskId || !onReorderTasks) {
+      handleDragEnd();
+      return;
+    }
+
+    const currentList = [...activeTasks];
+    const sourceIdx = currentList.findIndex((t) => t.id === draggedTaskId);
+    if (sourceIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+
+    const [removed] = currentList.splice(sourceIdx, 1);
+    const targetIdx = currentList.findIndex((t) => t.id === targetTaskId);
+    if (targetIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+
+    const insertIdx = dropPosition === 'above' ? targetIdx : targetIdx + 1;
+    currentList.splice(insertIdx, 0, removed);
+
+    const reorderedPayload = currentList.map((t, idx) => ({
+      id: t.id,
+      position: idx,
+    }));
+
+    handleDragEnd();
+    if (sortBy !== 'my_order') {
+      onChangeSort('my_order');
+    }
+    await onReorderTasks(reorderedPayload);
+  };
+
+  const handleContainerDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedTaskId || !onReorderTasks) {
+      handleDragEnd();
+      return;
+    }
+    const currentList = [...activeTasks];
+    const sourceIdx = currentList.findIndex((t) => t.id === draggedTaskId);
+    if (sourceIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+    const [removed] = currentList.splice(sourceIdx, 1);
+    currentList.push(removed);
+
+    const reorderedPayload = currentList.map((t, idx) => ({
+      id: t.id,
+      position: idx,
+    }));
+
+    handleDragEnd();
+    if (sortBy !== 'my_order') {
+      onChangeSort('my_order');
+    }
+    await onReorderTasks(reorderedPayload);
+  };
 
   // Filter and sort tasks
   const { activeTasks, completedTasks } = useMemo(() => {
@@ -127,11 +227,34 @@ export const TaskList: React.FC<TaskListProps> = ({
               key={task.id}
               task={task}
               isSelected={selectedTaskId === task.id}
+              lists={lists}
               onSelect={() => onSelectTask(task.id)}
               onToggleComplete={(checked) => onToggleComplete(task.id, checked)}
               onToggleStar={(starred) => onToggleStar(task.id, starred)}
+              onDeleteTask={onDeleteTask}
+              onUpdateTask={onUpdateTask}
+              isDraggable={true}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onDragEnd={handleDragEnd}
+              dropIndicator={dragOverTaskId === task.id ? dropPosition : null}
             />
           ))}
+
+          {/* Bottom drop zone when dragging */}
+          {draggedTaskId && (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={handleContainerDrop}
+              className="py-3 my-1 border-2 border-dashed border-[#1A73E8]/40 dark:border-[#8AB4F8]/40 rounded-xl text-center text-xs text-[#1A73E8] dark:text-[#8AB4F8] select-none"
+            >
+              Drop here to move to bottom
+            </div>
+          )}
         </div>
 
         {/* Completed Tasks Accordion */}
@@ -153,9 +276,12 @@ export const TaskList: React.FC<TaskListProps> = ({
                     key={task.id}
                     task={task}
                     isSelected={selectedTaskId === task.id}
+                    lists={lists}
                     onSelect={() => onSelectTask(task.id)}
                     onToggleComplete={(checked) => onToggleComplete(task.id, checked)}
                     onToggleStar={(starred) => onToggleStar(task.id, starred)}
+                    onDeleteTask={onDeleteTask}
+                    onUpdateTask={onUpdateTask}
                   />
                 ))}
               </div>
